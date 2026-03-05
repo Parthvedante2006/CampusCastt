@@ -7,9 +7,13 @@ class AdminRepository {
 
   AdminRepository(this._service);
 
-  Stream<List<SectionModel>> getSections() => _service.getSections();
+  // ── SECTIONS ──────────────────────────────────────────────
 
-  Future<SectionModel> createSection(String name, String collegeTrust) =>
+  Stream<List<SectionModel>> getSections() =>
+      _service.getSections();
+
+  Future<SectionModel> createSection(
+          String name, String collegeTrust) =>
       _service.createSection(name, collegeTrust);
 
   Future<void> setSectionOwner({
@@ -18,7 +22,8 @@ class AdminRepository {
     required String email,
     required String password,
     required String collegeTrust,
-  }) => _service.setSectionOwner(
+  }) =>
+      _service.setSectionOwner(
         sectionId: sectionId,
         name: name,
         email: email,
@@ -26,7 +31,10 @@ class AdminRepository {
         collegeTrust: collegeTrust,
       );
 
-  Stream<List<ChannelModel>> getChannels() => _service.getChannels();
+  // ── CHANNELS ──────────────────────────────────────────────
+
+  Stream<List<ChannelModel>> getChannels() =>
+      _service.getChannels();
 
   Future<void> createChannelWithOwner({
     required String channelName,
@@ -37,7 +45,8 @@ class AdminRepository {
     required String ownerPassword,
     required String collegeTrust,
     bool isDefault = false,
-  }) => _service.createChannelWithOwner(
+  }) =>
+      _service.createChannelWithOwner(
         channelName: channelName,
         sectionId: sectionId,
         sectionName: sectionName,
@@ -48,11 +57,40 @@ class AdminRepository {
         isDefault: isDefault,
       );
 
+  // ── CSV WHITELIST ──────────────────────────────────────────
+
   Future<Map<String, int>> uploadStudentWhitelist({
+  required String sectionId,
+  required String sectionName, // ✅ added
+  required List<Map<String, String>> students,
+}) =>
+    _service.uploadStudentWhitelist(
+      sectionId: sectionId,
+      sectionName: sectionName, // ✅ added
+      students: students,
+    );
+
+  Future<Map<String, dynamic>?> checkStudentWhitelist({
+    required String email,
     required String sectionId,
-    required List<Map<String, String>> students,
-  }) => _service.uploadStudentWhitelist(
+  }) =>
+      _service.checkStudentWhitelist(
+        email: email,
         sectionId: sectionId,
-        students: students,
+      );
+
+  Future<Map<String, dynamic>?> findStudentInWhitelist({
+    required String email,
+  }) =>
+      _service.findStudentInWhitelist(email: email);
+
+  Future<void> markStudentRegistered({
+    required String email,
+    required String sectionId,
+  }) =>
+      _service.markStudentRegistered(
+        email: email,
+        sectionId: sectionId,
       );
 }
+

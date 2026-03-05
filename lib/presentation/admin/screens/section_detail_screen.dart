@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:csv/csv.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../domain/providers/admin_provider.dart';
 import 'channel_detail_screen.dart';
@@ -305,107 +304,134 @@ class _SectionDetailScreenState
     );
   }
 
-  // ── CSV Upload ──────────────────────────────────────────
   Future<void> _uploadCsv() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom, allowedExtensions: ['csv']);
-      if (result == null || result.files.isEmpty) return;
-      setState(() => _isUploadingCsv = true);
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+    );
 
-      final file = File(result.files.single.path!);
-      final csvString = await file.readAsString();
-      final rows = const CsvToListConverter().convert(csvString);
+    if (result == null || result.files.isEmpty) return;
+    setState(() => _isUploadingCsv = true);
 
-      final startIndex = (rows.isNotEmpty &&
-              rows[0].any((cell) =>
-                  cell.toString().toLowerCase() == 'name'))
-          ? 1
-          : 0;
+    // ✅ Read file — handle both path and bytes
+    String csvString;
+    if (result.files.single.path != null) {
+      csvString = await File(result.files.single.path!).readAsString();
+    } else if (result.files.single.bytes != null) {
+      csvString = String.fromCharCodes(result.files.single.bytes!);
+    } else {
+      throw Exception('Could not read file.');
+    }
 
-      final students = <Map<String, String>>[];
-      for (int i = startIndex; i < rows.length; i++) {
-        if (rows[i].length >= 2) {
-          final email = rows[i][1].toString().trim();
-          if (email.isEmpty || !email.contains('@')) continue;
-          students.add({
-            'name': rows[i][0].toString().trim(),
-            'email': email,
-            'college': rows[i].length >= 3
-                ? rows[i][2].toString().trim()
-                : widget.sectionName,
-          });
-        }
+    // ✅ Split by newline — works perfectly for your CSV format
+    final lines = csvString
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('CSV file is empty.'),
+          backgroundColor: AppColors.error,
+        ));
       }
+      return;
+    }
 
-      if (students.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('No valid records found in CSV.'),
-            backgroundColor: AppColors.error,
-          ));
-        }
-        return;
+    // ✅ Skip header row automatically
+    final firstRow = lines[0].toLowerCase();
+    final startIndex =
+        (firstRow.contains('name') || firstRow.contains('email')) ? 1 : 0;
+
+    final students = <Map<String, String>>[];
+    for (int i = startIndex; i < lines.length; i++) {
+      final cols = lines[i].split(',');
+      if (cols.length < 2) continue;
+
+      final name = cols[0].trim();
+      final email = cols[1].trim();
+      final college =
+          cols.length >= 3 ? cols[2].trim() : widget.sectionName;
+
+      if (email.isEmpty || !email.contains('@')) continue;
+
+      students.add({
+        'name': name,
+        'email': email,
+        'college': college,
+      });
+    }
+
+    if (students.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No valid records found in CSV.'),
+          backgroundColor: AppColors.error,
+        ));
       }
+      return;
+    }
 
-      final uploadResult = await ref
-          .read(adminRepositoryProvider)
-          .uploadStudentWhitelist(
-            sectionId: widget.sectionId,
-            students: students,
-          );
+  final uploadResult = await ref
+    .read(adminRepositoryProvider)
+    .uploadStudentWhitelist(
+      sectionId: widget.sectionId,
+      sectionName: widget.sectionName, // ✅ added
+      students: students,
+    );
 
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.cardBg,
-          title: const Text('✅ CSV Upload Complete',
-              style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(children: [
-                const Icon(Icons.person_add,
-                    color: AppColors.success, size: 20),
-                const SizedBox(width: 10),
-                Text('${uploadResult['added']} new students added',
-                    style: const TextStyle(
-                        color: AppColors.white, fontSize: 15)),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                const Icon(Icons.skip_next,
-                    color: AppColors.grey, size: 20),
-                const SizedBox(width: 10),
-                Text('${uploadResult['existed']} already existed',
-                    style: const TextStyle(
-                        color: AppColors.grey, fontSize: 15)),
-              ]),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK',
-                  style: TextStyle(color: AppColors.accentBlue)),
-            ),
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBg,
+        title: const Text('✅ CSV Upload Complete',
+            style: TextStyle(
+                color: AppColors.white, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              const Icon(Icons.person_add,
+                  color: AppColors.success, size: 20),
+              const SizedBox(width: 10),
+              Text('${uploadResult['added']} new students added',
+                  style: const TextStyle(
+                      color: AppColors.white, fontSize: 15)),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              const Icon(Icons.skip_next,
+                  color: AppColors.grey, size: 20),
+              const SizedBox(width: 10),
+              Text('${uploadResult['existed']} already existed',
+                  style: const TextStyle(
+                      color: AppColors.grey, fontSize: 15)),
+            ]),
           ],
         ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.error));
-      }
-    } finally {
-      if (mounted) setState(() => _isUploadingCsv = false);
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK',
+                style: TextStyle(color: AppColors.accentBlue)),
+          ),
+        ],
+      ),
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error));
     }
+  } finally {
+    if (mounted) setState(() => _isUploadingCsv = false);
   }
-
+}
   // ── Create Channel ──────────────────────────────────────
   void _showCreateChannelSheet() {
     final nameController = TextEditingController();
