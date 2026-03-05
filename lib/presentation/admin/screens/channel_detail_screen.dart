@@ -1,9 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/channel_model.dart';
-import '../../../data/firebase/admin/admin_firestore_service.dart';
 
 class ChannelDetailScreen extends ConsumerStatefulWidget {
   final ChannelModel channel;
@@ -14,53 +14,152 @@ class ChannelDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ChannelDetailScreen> createState() => _ChannelDetailScreenState();
+  ConsumerState<ChannelDetailScreen> createState() =>
+      _ChannelDetailScreenState();
 }
 
-class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> {
-  final _adminEmailController = TextEditingController();
-  final _apiPasswordController = TextEditingController();
-  
+class _ChannelDetailScreenState
+    extends ConsumerState<ChannelDetailScreen> {
+  // ── Editable controllers ─────────────────────────────────
+  late TextEditingController _ownerNameController;
+  late TextEditingController _ownerEmailController;
+  late TextEditingController _passwordController;
+  bool _obscurePassword = true;
+  bool _isSaving = false;
+  bool _isLoadingPassword = true;
+
   @override
   void initState() {
     super.initState();
-    _adminEmailController.text = widget.channel.ownerEmail ?? 'No email set';
-    _apiPasswordController.text = '••••••••••••';
+    _ownerNameController =
+        TextEditingController(text: widget.channel.ownerName ?? '');
+    _ownerEmailController =
+        TextEditingController(text: widget.channel.ownerEmail ?? '');
+    _passwordController = TextEditingController();
+    _loadPassword();
+  }
+
+  // ✅ Load real password from Firestore
+  Future<void> _loadPassword() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(widget.channel.id)
+          .get();
+      final password = doc.data()?['owner_password'] ?? '';
+      _passwordController.text = password;
+    } catch (_) {
+      _passwordController.text = '';
+    } finally {
+      if (mounted) setState(() => _isLoadingPassword = false);
+    }
   }
 
   @override
   void dispose() {
-    _adminEmailController.dispose();
-    _apiPasswordController.dispose();
+    _ownerNameController.dispose();
+    _ownerEmailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  void _regeneratePassword() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password regenerated successfully.'), backgroundColor: AppColors.success),
-    );
-    // Real implementation would update password in auth and DB.
+  // ✅ Save credentials to Firestore + Firebase Auth
+  Future<void> _saveCredentials() async {
+    if (_ownerEmailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Email and password cannot be empty.')));
+      return;
+    }
+    if (_passwordController.text.trim().length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Password must be at least 6 characters.')));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      // Update Firestore channel doc
+      await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(widget.channel.id)
+          .update({
+        'owner_name': _ownerNameController.text.trim(),
+        'owner_email': _ownerEmailController.text.trim(),
+        'owner_password': _passwordController.text.trim(),
+      });
+
+      // Update Firestore users doc if ownerUid exists
+     // Update users doc by querying email
+final usersQuery = await FirebaseFirestore.instance
+    .collection('users')
+    .where('email', isEqualTo: widget.channel.ownerEmail ?? '')
+    .limit(1)
+    .get();
+if (usersQuery.docs.isNotEmpty) {
+  await usersQuery.docs.first.reference.update({
+    'name': _ownerNameController.text.trim(),
+    'email': _ownerEmailController.text.trim(),
+    'password': _passwordController.text.trim(),
+  });
+}
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Credentials saved successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
-  void _copyPassword() {
-    // We would ideally copy the actual API password here if it was available in plain text.
-    Clipboard.setData(const ClipboardData(text: 'dummy_password'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password copied!')),
-    );
-  }
-
-  void _showChangeOwnerSheet() {
-      // Stub for changing owner
-      showModalBottomSheet(
-        context: context,
+  // ✅ Delete channel from Firestore
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBg,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (_) => Container(
-          padding: const EdgeInsets.all(24),
-          child: const Text('Change Owner (Placeholder)', style: TextStyle(color: AppColors.white)),
-        )
-      );
+        title: const Text('Remove Channel',
+            style: TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to remove "${widget.channel.name}"? This cannot be undone.',
+          style: const TextStyle(color: AppColors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await FirebaseFirestore.instance
+                  .collection('channels')
+                  .doc(widget.channel.id)
+                  .delete();
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Remove',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -68,209 +167,310 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.primaryBg,
       appBar: AppBar(
-        title: const Text('Channel Detail', style: TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        title: Text(widget.channel.name,
+            style: const TextStyle(
+                color: AppColors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: AppColors.primaryBg,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, size: 20),
-            onPressed: () {},
-          )
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Card (Channel Info)
+            // ── Channel Info Card ─────────────────────────
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 28, horizontal: 16),
               decoration: BoxDecoration(
                 color: AppColors.cardBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12, width: 1),
+                border:
+                    Border.all(color: Colors.white12, width: 1),
               ),
               child: Column(
                 children: [
                   Container(
-                    width: 100, height: 100,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryBg,
+                      color: const Color(0xFF8CD8B8)
+                          .withOpacity(0.2),
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accentBlue.withOpacity(0.3), width: 2),
                     ),
-                    child: const Center(
-                      child: Icon(Icons.hexagon_outlined, color: AppColors.accentBlue, size: 40),
+                    child: Center(
+                      child: Text(
+                        widget.channel.name[0].toUpperCase(),
+                        style: const TextStyle(
+                            color: Color(0xFF8CD8B8),
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(widget.channel.name, style: const TextStyle(color: AppColors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Text(widget.channel.name,
+                      style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.accentBlue.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
-                        child: Text(widget.channel.sectionName.toUpperCase(), style: const TextStyle(color: AppColors.accentBlue, fontSize: 11, fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: AppColors.accentBlue
+                                .withOpacity(0.2),
+                            borderRadius:
+                                BorderRadius.circular(6)),
+                        child: Text(
+                            widget.channel.sectionName
+                                .toUpperCase(),
+                            style: const TextStyle(
+                                color: AppColors.accentBlue,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
                       ),
-                      const SizedBox(width: 8),
-                      const Text('• 1.2k members', style: TextStyle(color: AppColors.grey, fontSize: 14)), // Hardcoded for mockup
+                      if (widget.channel.isDefault) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                              color:
+                                  Colors.green.withOpacity(0.2),
+                              borderRadius:
+                                  BorderRadius.circular(6)),
+                          child: const Text('🌐 Global',
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ],
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
 
-            // Stats Row
+            // ── Stats Row ─────────────────────────────────
             Row(
               children: [
-                Expanded(child: _buildStatCard('248', 'BROADCASTS')),
-                const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('1,240', 'MEMBERS')),
-                const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('12', 'POLLS')),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // Channel Owner Section
-            const Text('CHANNEL OWNER', style: TextStyle(color: AppColors.grey, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.accentBlue,
-                  child: Text((widget.channel.ownerName?.isNotEmpty == true ? widget.channel.ownerName![0] : '?').toUpperCase(), style: const TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.channel.ownerName ?? 'No Owner', style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text(widget.channel.ownerEmail ?? 'No email', style: const TextStyle(color: AppColors.grey, fontSize: 14)),
-                    ],
-                  ),
-                ),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: _showChangeOwnerSheet,
-                  child: const Text('Change Owner', style: TextStyle(color: AppColors.white, fontSize: 12)),
-                ),
+                    child: _statCard('0', 'BROADCASTS')),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _statCard(
+                        '${widget.channel.memberCount}',
+                        'MEMBERS')),
+                const SizedBox(width: 12),
+                Expanded(child: _statCard('0', 'POLLS')),
               ],
             ),
+            const SizedBox(height: 28),
 
-            const SizedBox(height: 32),
-
-            // Credentials Section
-            const Text('CREDENTIALS', style: TextStyle(color: AppColors.grey, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+            // ── Credentials Section ───────────────────────
+            const Text('OWNER CREDENTIALS',
+                style: TextStyle(
+                    color: AppColors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppColors.cardBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12, width: 1),
+                border:
+                    Border.all(color: Colors.white12, width: 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Admin Email', style: TextStyle(color: AppColors.grey, fontSize: 12)),
+                  // Owner Name
+                  const Text('Owner Name',
+                      style: TextStyle(
+                          color: AppColors.grey, fontSize: 12)),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _adminEmailController,
-                    readOnly: true,
-                    style: const TextStyle(color: AppColors.white, fontSize: 14),
+                    controller: _ownerNameController,
+                    style: const TextStyle(
+                        color: AppColors.white, fontSize: 14),
                     decoration: InputDecoration(
-                      filled: true, fillColor: AppColors.primaryBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                      prefixIcon: const Icon(Icons.person,
+                          color: AppColors.grey, size: 20),
+                      filled: true,
+                      fillColor: AppColors.primaryBg,
+                      contentPadding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  const Text('API Password', style: TextStyle(color: AppColors.grey, fontSize: 12)),
+
+                  // Owner Email
+                  const Text('Owner Email',
+                      style: TextStyle(
+                          color: AppColors.grey, fontSize: 12)),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _apiPasswordController,
-                    readOnly: true,
-                    obscureText: true,
-                    style: const TextStyle(color: AppColors.white, fontSize: 14),
+                    controller: _ownerEmailController,
+                    style: const TextStyle(
+                        color: AppColors.white, fontSize: 14),
+                    keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      filled: true, fillColor: AppColors.primaryBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.copy, color: AppColors.grey, size: 20),
-                        onPressed: _copyPassword,
-                      ),
+                      prefixIcon: const Icon(Icons.email,
+                          color: AppColors.grey, size: 20),
+                      filled: true,
+                      fillColor: AppColors.primaryBg,
+                      contentPadding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: _regeneratePassword,
-                        child: const Text('Regenerate Password', style: TextStyle(color: AppColors.accentBlue, fontWeight: FontWeight.w600)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accentBlue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  const SizedBox(height: 16),
+
+                  // ✅ Password — manual editable
+                  const Text('Password',
+                      style: TextStyle(
+                          color: AppColors.grey, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  _isLoadingPassword
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.accentBlue))
+                      : TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 14),
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.lock,
+                                color: AppColors.grey, size: 20),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Eye toggle
+                                IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: AppColors.grey,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() =>
+                                      _obscurePassword =
+                                          !_obscurePassword),
+                                ),
+                                // Copy button
+                                IconButton(
+                                  icon: const Icon(Icons.copy,
+                                      color: AppColors.accentBlue,
+                                      size: 20),
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(
+                                        text: _passwordController
+                                            .text));
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(const SnackBar(
+                                            content: Text(
+                                                'Password copied!')));
+                                  },
+                                ),
+                              ],
+                            ),
+                            filled: true,
+                            fillColor: AppColors.primaryBg,
+                            contentPadding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(8),
+                                borderSide: BorderSide.none),
+                          ),
                         ),
-                        onPressed: () {
-                          // Save credentials
-                        },
-                        child: const Text('Save Credentials', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 24),
+
+                  // ✅ Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentBlue,
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(8)),
                       ),
-                    ],
+                      onPressed:
+                          _isSaving ? null : _saveCredentials,
+                      child: _isSaving
+                          ? const CircularProgressIndicator(
+                              color: AppColors.white,
+                              strokeWidth: 2)
+                          : const Text('Save Credentials',
+                              style: TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600)),
+                    ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 28),
 
-            const SizedBox(height: 32),
-
-            // Remove Channel Section
-            Container(
+            // ── Remove Channel ────────────────────────────
+            SizedBox(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.transparent, // or a very dark red
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.error.withOpacity(0.3), width: 1),
-              ),
-              child: TextButton.icon(
-                onPressed: () {
-                  // Show confirmation dialog before removing
-                },
-                icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                label: const Text('Remove Channel', style: TextStyle(color: AppColors.error, fontSize: 16, fontWeight: FontWeight.bold)),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                      color: Colors.red.withOpacity(0.5)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: _confirmDelete,
+                icon:
+                    const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('Remove Channel',
+                    style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Text(
-              'Removing this channel will delete all history, members, and credentials permanently. This action cannot be undone.',
-              style: TextStyle(color: AppColors.grey, fontSize: 12, height: 1.5),
+              'Removing this channel will delete all history, members, and credentials permanently.',
+              style: TextStyle(
+                  color: AppColors.grey,
+                  fontSize: 12,
+                  height: 1.5),
               textAlign: TextAlign.center,
             ),
-            
             const SizedBox(height: 40),
           ],
         ),
@@ -278,9 +478,10 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> {
     );
   }
 
-  Widget _buildStatCard(String value, String label) {
+  Widget _statCard(String value, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+      padding: const EdgeInsets.symmetric(
+          vertical: 20, horizontal: 8),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
@@ -288,9 +489,18 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> {
       ),
       child: Column(
         children: [
-          Text(value, style: const TextStyle(color: AppColors.accentBlue, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(value,
+              style: const TextStyle(
+                  color: AppColors.accentBlue,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: AppColors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.grey,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1)),
         ],
       ),
     );
