@@ -9,6 +9,7 @@ class ChannelModel {
   final bool isDefault;
   final bool isLive;
   final String? activeBroadcastId;
+  final int memberCount;
 
   ChannelModel({
     required this.id,
@@ -21,6 +22,7 @@ class ChannelModel {
     this.isDefault = false,
     this.isLive = false,
     this.activeBroadcastId,
+    this.memberCount = 0,
   });
 
   factory ChannelModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -35,6 +37,7 @@ class ChannelModel {
       isDefault: map['is_default'] ?? false,
       isLive: map['is_live'] ?? false,
       activeBroadcastId: map['active_broadcast_id'],
+      memberCount: map['member_count'] ?? 0,
     );
   }
 
@@ -49,6 +52,7 @@ class ChannelModel {
       'is_default': isDefault,
       'is_live': isLive,
       'active_broadcast_id': activeBroadcastId,
+      'member_count': memberCount,
     };
   }
 }

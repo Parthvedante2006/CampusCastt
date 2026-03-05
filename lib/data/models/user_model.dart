@@ -7,9 +7,12 @@ class UserModel {
   final UserRole role;
   final String? collegeTrust;
   final String? sectionId;
+  final String? channelId;
   final List<String> joinedSections;
   final List<String> defaultChannels;
   final List<String> joinedChannels;
+
+  String? displayName;
 
   UserModel({
     required this.uid,
@@ -18,6 +21,7 @@ class UserModel {
     required this.role,
     this.collegeTrust,
     this.sectionId,
+    this.channelId,
     this.joinedSections = const [],
     this.defaultChannels = const [],
     this.joinedChannels = const [],
@@ -31,6 +35,7 @@ class UserModel {
       role: UserRole.fromString(map['role'] ?? 'student'),
       collegeTrust: map['college_trust'] ?? map['collegeTrust'],
       sectionId: map['section_id'] ?? map['sectionId'],
+      channelId: map['channel_id'] ?? map['channelId'],
       joinedSections: List<String>.from(map['joined_sections'] ?? []),
       defaultChannels: List<String>.from(map['default_channels'] ?? []),
       joinedChannels: List<String>.from(map['joined_channels'] ?? []),
@@ -44,6 +49,7 @@ class UserModel {
       'role': role.value,
       'college_trust': collegeTrust,
       'section_id': sectionId,
+      'channel_id': channelId,
       'joined_sections': joinedSections,
       'default_channels': defaultChannels,
       'joined_channels': joinedChannels,

@@ -103,6 +103,9 @@ class AdminFirestoreService {
       'owner_email': ownerEmail,
       'owner_password': ownerPassword,
       'is_default': isDefault,
+      'is_live': false,
+      'active_broadcast_id': null,
+      'member_count': 0,
     });
 
     // Create Firebase Auth account for channel owner

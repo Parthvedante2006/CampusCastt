@@ -26,3 +26,10 @@ final allChannelsProvider =
     StreamProvider<List<ChannelModel>>((ref) {
   return _repo.streamAllChannels();
 });
+
+// ── Channel broadcasts provider ────────────────────────────────
+/// Watches broadcasts for a specific channel.
+final channelBroadcastsProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, channelId) {
+  return _repo.streamChannelBroadcasts(channelId);
+});

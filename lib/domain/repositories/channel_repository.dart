@@ -37,4 +37,17 @@ class ChannelRepository {
             .map((doc) => ChannelModel.fromMap(doc.data(), doc.id))
             .toList());
   }
+
+  /// Stream broadcasts for a specific channel (ordered by startedAt descending).
+  Stream<List<Map<String, dynamic>>> streamChannelBroadcasts(String channelId) {
+    return _db
+        .collection('broadcasts')
+        .where('channelId', isEqualTo: channelId)
+        .orderBy('startedAt', descending: true)
+        .limit(10)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList());
+  }
 }

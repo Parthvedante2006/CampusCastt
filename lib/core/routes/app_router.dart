@@ -7,6 +7,8 @@ import 'package:campuscast/presentation/auth/screens/register_screen.dart';
 import 'package:campuscast/presentation/admin/screens/admin_dashboard_screen.dart';
 import 'package:campuscast/presentation/section_owner/screens/section_dashboard_screen.dart';
 import 'package:campuscast/presentation/channel_owner/screens/channel_dashboard_screen.dart';
+import 'package:campuscast/presentation/channel_owner/screens/broadcast_screen.dart';
+import 'package:campuscast/presentation/channel_owner/screens/schedule_announcement_screen.dart';
 import 'package:campuscast/presentation/student/screens/student_home_screen.dart';
 
 // ── Route path constants ───────────────────────────────────────
@@ -20,6 +22,10 @@ class AppRoutes {
   static const adminDashboard    = '/admin/dashboard';
   static const sectionDashboard  = '/section/dashboard';
   static const channelDashboard  = '/channel/dashboard';
+
+  // Channel owner routes
+  static const broadcast              = '/channel/broadcast';
+  static const scheduleAnnouncement   = '/channel/schedule-announcement';
 
   // Broadcast (friend's routes)
   static const home        = '/';
@@ -59,6 +65,20 @@ GoRouter createAppRouter({required String initialLocation}) {
       GoRoute(
         path: AppRoutes.channelDashboard,
         builder: (context, state) => const ChannelOwnerDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.broadcast,
+        builder: (context, state) => const BroadcastScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.scheduleAnnouncement,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, String>;
+          return ScheduleAnnouncementScreen(
+            channelId: extra['channelId']!,
+            channelName: extra['channelName']!,
+          );
+        },
       ),
 
       // ── Broadcast routes (friend's) ────────────────────────────

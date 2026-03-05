@@ -85,4 +85,47 @@ class ChannelFirestore {
         .snapshots()
         .map((snap) => (snap.data()?['listeners'] as num?)?.toInt() ?? 0);
   }
+
+  // ──────────────────────────────────────────────
+  // Scheduled Announcements
+  // ──────────────────────────────────────────────
+
+  /// Create a new scheduled announcement
+  Future<String> createScheduledAnnouncement(
+      Map<String, dynamic> announcementData) async {
+    final docRef = await _db
+        .collection('scheduled_announcements')
+        .add(announcementData);
+    return docRef.id;
+  }
+
+  /// Get scheduled announcements for a channel
+  Stream<List<Map<String, dynamic>>> streamScheduledAnnouncements(
+      String channelId) {
+    return _db
+        .collection('scheduled_announcements')
+        .where('channel_id', isEqualTo: channelId)
+        .where('status', isEqualTo: 'scheduled')
+        .orderBy('scheduled_at', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList());
+  }
+
+  /// Update announcement status
+  Future<void> updateAnnouncementStatus(String announcementId, String status) async {
+    await _db
+        .collection('scheduled_announcements')
+        .doc(announcementId)
+        .update({'status': status});
+  }
+
+  /// Delete scheduled announcement
+  Future<void> deleteScheduledAnnouncement(String announcementId) async {
+    await _db
+        .collection('scheduled_announcements')
+        .doc(announcementId)
+        .delete();
+  }
 }
