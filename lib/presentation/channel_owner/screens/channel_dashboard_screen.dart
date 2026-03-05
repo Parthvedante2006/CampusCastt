@@ -5,12 +5,46 @@ import 'package:go_router/go_router.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/channel_provider.dart';
 import '../../../core/routes/app_router.dart';
+import '../widgets/channel_bottom_nav_bar.dart';
+import 'broadcast_screen.dart';
+import 'schedule_screen.dart';
 
-class ChannelOwnerDashboardScreen extends ConsumerWidget {
+class ChannelOwnerDashboardScreen extends ConsumerStatefulWidget {
   const ChannelOwnerDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChannelOwnerDashboardScreen> createState() => _ChannelOwnerDashboardScreenState();
+}
+
+class _ChannelOwnerDashboardScreenState extends ConsumerState<ChannelOwnerDashboardScreen> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A1628),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildDashboardTab(context),
+          const BroadcastScreen(),
+          const ChannelOwnerEventsScreen(),
+          const Center(child: Text('Clubs (Coming soon)', style: TextStyle(color: Colors.white))),
+          const Center(child: Text('Profile (Coming soon)', style: TextStyle(color: Colors.white))),
+        ],
+      ),
+      bottomNavigationBar: ChannelOwnerBottomNavBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildDashboardTab(BuildContext context) {
     final currentUserAsync = ref.watch(currentUserProvider);
 
     return Scaffold(
@@ -62,7 +96,6 @@ class ChannelOwnerDashboardScreen extends ConsumerWidget {
           return _buildDashboard(context, ref, channelId);
         },
       ),
-      bottomNavigationBar: _buildBottomNavBar(context, 0),
     );
   }
 
@@ -352,7 +385,9 @@ class ChannelOwnerDashboardScreen extends ConsumerWidget {
                 title: 'Broadcasts',
                 color: const Color(0xFF10B981),
                 onTap: () {
-                  context.push(AppRoutes.broadcast);
+                  setState(() {
+                    _currentIndex = 1;
+                  });
                 },
               ),
             ),
@@ -609,100 +644,4 @@ class ChannelOwnerDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBottomNavBar(BuildContext context, int selectedIndex) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF112240),
-        border: Border(
-          top: BorderSide(color: const Color(0xFF1E3A5F), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(
-            icon: Icons.home,
-            label: 'Home',
-            isSelected: selectedIndex == 0,
-            onTap: () {
-              // Already on home/dashboard
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.podcasts,
-            label: 'Broadcast',
-            isSelected: selectedIndex == 1,
-            onTap: () {
-              context.push(AppRoutes.broadcast);
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.event,
-            label: 'Events',
-            isSelected: selectedIndex == 2,
-            onTap: () {
-              if (selectedIndex != 2) {
-                context.go(AppRoutes.channelEvents);
-              }
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.groups,
-            label: 'Clubs',
-            isSelected: selectedIndex == 3,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Clubs screen coming soon')),
-              );
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: selectedIndex == 4,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile screen coming soon')),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.red : Colors.white54,
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.red : Colors.white54,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

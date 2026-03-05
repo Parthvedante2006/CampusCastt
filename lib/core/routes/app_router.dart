@@ -11,6 +11,8 @@ import 'package:campuscast/presentation/channel_owner/screens/broadcast_screen.d
 import 'package:campuscast/presentation/channel_owner/screens/schedule_announcement_screen.dart';
 import 'package:campuscast/presentation/channel_owner/screens/schedule_screen.dart';
 import 'package:campuscast/presentation/student/screens/student_home_screen.dart';
+import 'package:campuscast/presentation/student/screens/channel_detail_screen.dart';
+import 'package:campuscast/presentation/student/screens/event_detail_screen.dart';
 
 // ── Route path constants ───────────────────────────────────────
 class AppRoutes {
@@ -23,6 +25,10 @@ class AppRoutes {
   static const adminDashboard    = '/admin/dashboard';
   static const sectionDashboard  = '/section/dashboard';
   static const channelDashboard  = '/channel/dashboard';
+
+  // Student routes
+  static const channelDetail      = '/student/channel/:channelId';
+  static const studentEventDetail = '/student/event/:eventId';
 
   // Channel owner routes
   static const broadcast              = '/channel/broadcast';
@@ -55,6 +61,20 @@ GoRouter createAppRouter({required String initialLocation}) {
       GoRoute(
         path: AppRoutes.studentHome,
         builder: (context, state) => const StudentHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.channelDetail,
+        builder: (context, state) {
+          final channelId = state.pathParameters['channelId']!;
+          return ChannelDetailScreen(channelId: channelId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.studentEventDetail,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return StudentEventDetailScreen(event: extra['event']);
+        },
       ),
       GoRoute(
         path: AppRoutes.adminDashboard,

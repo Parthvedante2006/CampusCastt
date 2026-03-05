@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_router.dart';
 import '../../../domain/providers/auth_provider.dart';
+import '../../../domain/providers/student_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -27,13 +28,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool? _isEmailValid;
   String? _emailErrorMessage;
 
-  // Ideally, this should come from a Riverpod provider fetching the sections/colleges.
-  // We'll mock it for now until that part is fully developed.
-  final List<Map<String, String>> _colleges = [
-    {'id': 'sec_vit_engg', 'name': 'VIT Engineering'},
-    {'id': 'sec_vit_medical', 'name': 'VIT Medical'},
-    {'id': 'sec_vit_jc', 'name': 'VIT Junior College'},
-  ];
+  // The selected section/college ID
+  // It will directly map to the Firestore section document ID
 
   @override
   void dispose() {
@@ -54,7 +50,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
 
     try {
-      final formattedEmail = email.replaceAll('.', '_');
+      final formattedEmail = email.toLowerCase().replaceAll('@', '_at_').replaceAll('.', '_');
       final doc = await FirebaseFirestore.instance
           .collection('whitelist')
           .doc(_selectedCollegeId)
@@ -186,35 +182,51 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: Column(
                     children: [
                       // College Dropdown
-                      DropdownButtonFormField<String>(
-                        value: _selectedCollegeId,
-                        dropdownColor: AppColors.cardBg,
-                        style: const TextStyle(color: AppColors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Select College',
-                          hintStyle: const TextStyle(color: AppColors.grey),
-                          prefixIcon: const Icon(Icons.account_balance, color: AppColors.grey),
-                          filled: true,
-                          fillColor: AppColors.primaryBg,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        items: _colleges.map((college) {
-                          return DropdownMenuItem(
-                            value: college['id'],
-                            child: Text(college['name']!),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCollegeId = value;
-                          });
-                          if (_emailController.text.isNotEmpty) {
-                             _checkEmailWhitelist(_emailController.text.trim());
+                      ref.watch(studentSectionsProvider).when(
+                        data: (sections) {
+                          // Validate selected ID still exists in list, otherwise clear it to prevent Dropdown crash
+                          if (_selectedCollegeId != null && !sections.any((s) => s.id == _selectedCollegeId)) {
+                            _selectedCollegeId = null; 
                           }
+                          return DropdownButtonFormField<String>(
+                            value: _selectedCollegeId,
+                            dropdownColor: AppColors.cardBg,
+                            style: const TextStyle(color: AppColors.white),
+                            decoration: InputDecoration(
+                              hintText: 'Select College',
+                              hintStyle: const TextStyle(color: AppColors.grey),
+                              prefixIcon: const Icon(Icons.account_balance, color: AppColors.grey),
+                              filled: true,
+                              fillColor: AppColors.primaryBg,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            items: sections.map((section) {
+                              return DropdownMenuItem(
+                                value: section.id,
+                                child: Text(section.collegeTrust),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCollegeId = value;
+                              });
+                              if (_emailController.text.isNotEmpty) {
+                                 _checkEmailWhitelist(_emailController.text.trim());
+                              }
+                            },
+                          );
                         },
+                        loading: () => const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: CircularProgressIndicator(color: AppColors.accentBlue),
+                        ),
+                        error: (err, st) => const Text(
+                          'Error loading colleges.',
+                          style: TextStyle(color: AppColors.error),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       // Full Name

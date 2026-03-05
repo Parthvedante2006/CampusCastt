@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/channel_provider.dart';
 import '../../../core/routes/app_router.dart';
+import '../widgets/channel_bottom_nav_bar.dart';
 
 class BroadcastScreen extends ConsumerWidget {
   const BroadcastScreen({super.key});
@@ -84,7 +85,6 @@ class BroadcastScreen extends ConsumerWidget {
           return _buildBroadcastBody(context, ref, channelId);
         },
       ),
-      bottomNavigationBar: _buildBottomNavBar(context, 1),
     );
   }
 
@@ -147,102 +147,6 @@ class BroadcastScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBottomNavBar(BuildContext context, int selectedIndex) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF112240),
-        border: Border(
-          top: BorderSide(color: const Color(0xFF1E3A5F), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(
-            icon: Icons.home,
-            label: 'Home',
-            isSelected: selectedIndex == 0,
-            onTap: () {
-              context.pop();
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.podcasts,
-            label: 'Broadcast',
-            isSelected: selectedIndex == 1,
-            onTap: () {
-              // Already on broadcast
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.event,
-            label: 'Events',
-            isSelected: selectedIndex == 2,
-            onTap: () {
-              if (selectedIndex != 2) {
-                context.go(AppRoutes.channelEvents);
-              }
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.groups,
-            label: 'Clubs',
-            isSelected: selectedIndex == 3,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Clubs screen coming soon')),
-              );
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: selectedIndex == 4,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile screen coming soon')),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.red : Colors.white54,
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.red : Colors.white54,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildActionCards(BuildContext context, WidgetRef ref, String channelId, AsyncValue<dynamic> channelAsync) {
     return channelAsync.when(

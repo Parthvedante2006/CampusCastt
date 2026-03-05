@@ -102,8 +102,8 @@ class FirebaseAuthService {
       try {
         // Check whitelist in Firestore
         // Path: whitelist/{section_id}/emails/{email_formatted}
-        // Firebase document IDs cannot contain '.', so replace '.' with '_'
-        String formattedEmail = email.replaceAll('.', '_');
+        // Firebase document IDs cannot contain '.', so replace '.' with '_' and '@' with '_at_'
+        String formattedEmail = email.toLowerCase().replaceAll('@', '_at_').replaceAll('.', '_');
         
         DocumentReference emailRef = _firestore
             .collection('whitelist')

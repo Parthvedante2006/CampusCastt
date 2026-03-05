@@ -10,6 +10,7 @@ import '../../../domain/providers/channel_provider.dart';
 import '../../section_owner/screens/event_detail_screen.dart'
     as section_owner;
 import 'post_event_screen.dart' as channel_owner;
+import '../widgets/channel_bottom_nav_bar.dart';
 
 class ChannelOwnerEventsScreen extends ConsumerWidget {
   const ChannelOwnerEventsScreen({super.key});
@@ -95,7 +96,6 @@ class ChannelOwnerEventsScreen extends ConsumerWidget {
           );
         },
       ),
-      bottomNavigationBar: _buildBottomNavBar(context),
     );
   }
 
@@ -302,93 +302,6 @@ class ChannelOwnerEventsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBottomNavBar(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF112240),
-        border: Border(
-          top: BorderSide(color: Color(0xFF1E3A5F), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(
-            context: context,
-            icon: Icons.home,
-            label: 'Home',
-            isSelected: false,
-            onTap: () => context.go(AppRoutes.channelDashboard),
-          ),
-          _buildNavItem(
-            context: context,
-            icon: Icons.podcasts,
-            label: 'Broadcast',
-            isSelected: false,
-            onTap: () => context.go(AppRoutes.broadcast),
-          ),
-          _buildNavItem(
-            context: context,
-            icon: Icons.event,
-            label: 'Events',
-            isSelected: true,
-            onTap: () {},
-          ),
-          _buildNavItem(
-            context: context,
-            icon: Icons.groups,
-            label: 'Clubs',
-            isSelected: false,
-            onTap: () {},
-          ),
-          _buildNavItem(
-            context: context,
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: false,
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.red : Colors.white54,
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.red : Colors.white54,
-                  fontSize: 11,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   String _monthAbbr(int month) {
     const months = [
