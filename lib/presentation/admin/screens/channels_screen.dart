@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/firebase/admin/admin_firestore_service.dart';
 import '../../../domain/providers/admin_provider.dart';
+import 'channel_detail_screen.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -22,6 +23,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     String? selectedSectionId;
     String? selectedSectionName;
     bool isSaving = false;
+    bool isDefault = true;
 
     showModalBottomSheet(
       context: context,
@@ -80,6 +82,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                           });
                         },
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Global channel checkbox
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: isDefault,
+                          onChanged: (val) => setSheetState(() => isDefault = val ?? false),
+                          activeColor: AppColors.accentBlue,
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Global Channel (Default to everyone enrolled in the section)',
+                            style: TextStyle(color: AppColors.white, fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     const Text('CHANNEL OWNER', style: TextStyle(color: AppColors.grey, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1)),
@@ -162,6 +181,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                               ownerEmail: ownerEmailController.text.trim(),
                               ownerPassword: generatedPassword,
                               collegeTrust: '',
+                              isDefault: isDefault,
                             );
                             if (ctx.mounted) Navigator.pop(ctx);
                           } catch (e) {
@@ -196,14 +216,15 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     return Scaffold(
       backgroundColor: AppColors.primaryBg,
       appBar: AppBar(
-        title: const Text('Channels', style: TextStyle(color: AppColors.white)),
+        title: const Text('Channels', style: TextStyle(color: AppColors.white, fontSize: 24, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.primaryBg,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: AppColors.white),
+            icon: const Icon(Icons.add_circle, color: AppColors.accentBlue, size: 30),
             onPressed: _showCreateChannelSheet,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: channelsAsync.when(
@@ -218,42 +239,50 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             itemCount: channels.length,
             itemBuilder: (context, index) {
               final channel = channels[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48, height: 48,
-                      decoration: BoxDecoration(color: AppColors.accentBlue, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.podcasts, color: AppColors.white),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(channel.name, style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: AppColors.accentBlue.withOpacity(0.3), borderRadius: BorderRadius.circular(4)),
-                                child: Text(channel.sectionName, style: const TextStyle(color: AppColors.white, fontSize: 11)),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                channel.ownerName ?? 'No owner',
-                                style: const TextStyle(color: AppColors.grey, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ],
+              return InkWell(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => ChannelDetailScreen(channel: channel),
+                  ));
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12)),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(color: AppColors.accentBlue, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.podcasts, color: AppColors.white),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(channel.name, style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.accentBlue.withOpacity(0.3), borderRadius: BorderRadius.circular(4)),
+                                  child: Text(channel.sectionName, style: const TextStyle(color: AppColors.white, fontSize: 11)),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  channel.ownerName ?? 'No owner',
+                                  style: const TextStyle(color: AppColors.grey, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: AppColors.grey),
+                    ],
+                  ),
                 ),
               );
             },
