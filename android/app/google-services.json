@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392843292829",
+    "project_id": "campusbroadcast-70b27",
+    "storage_bucket": "campusbroadcast-70b27.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392843292829:android:5b7ae974eb09bf4cb72474",
+        "android_client_info": {
+          "package_name": "com.example.campuscast"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhMkXD_4HMJR6Yxg3cZmiavPLku8REPwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

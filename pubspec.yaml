@@ -44,6 +44,11 @@ dependencies:
   go_router: ^17.1.0
   google_fonts: ^8.0.2
   flutter_svg: ^2.2.3
+  just_audio: ^0.9.40
+  record: ^6.0.0
+  socket_io_client: ^3.0.2
+  permission_handler: ^11.3.1
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
