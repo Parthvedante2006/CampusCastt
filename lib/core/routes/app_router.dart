@@ -9,6 +9,7 @@ import 'package:campuscast/presentation/section_owner/screens/section_dashboard_
 import 'package:campuscast/presentation/channel_owner/screens/channel_dashboard_screen.dart';
 import 'package:campuscast/presentation/channel_owner/screens/broadcast_screen.dart';
 import 'package:campuscast/presentation/channel_owner/screens/schedule_announcement_screen.dart';
+import 'package:campuscast/presentation/channel_owner/screens/schedule_screen.dart';
 import 'package:campuscast/presentation/student/screens/student_home_screen.dart';
 
 // ── Route path constants ───────────────────────────────────────
@@ -26,6 +27,7 @@ class AppRoutes {
   // Channel owner routes
   static const broadcast              = '/channel/broadcast';
   static const scheduleAnnouncement   = '/channel/schedule-announcement';
+  static const channelEvents          = '/channel/events';
 
   // Broadcast (friend's routes)
   static const home        = '/';
@@ -69,6 +71,10 @@ GoRouter createAppRouter({required String initialLocation}) {
       GoRoute(
         path: AppRoutes.broadcast,
         builder: (context, state) => const BroadcastScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.channelEvents,
+        builder: (context, state) => const ChannelOwnerEventsScreen(),
       ),
       GoRoute(
         path: AppRoutes.scheduleAnnouncement,

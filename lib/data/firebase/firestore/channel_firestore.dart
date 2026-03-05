@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../models/event_model.dart';
+
 class ChannelFirestore {
   final _db = FirebaseFirestore.instance;
 
@@ -127,5 +129,65 @@ class ChannelFirestore {
         .collection('scheduled_announcements')
         .doc(announcementId)
         .delete();
+  }
+
+  // ──────────────────────────────────────────────
+  // Channel Events (per-channel subcollection)
+  // ──────────────────────────────────────────────
+
+  /// Stream events for a specific channel from
+  /// channels/{channelId}/events ordered by event_date desc.
+  Stream<List<EventModel>> streamChannelEvents(String channelId) {
+    return _db
+        .collection('channels')
+        .doc(channelId)
+        .collection('events')
+        .orderBy('event_date', descending: true)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (doc) => EventModel.fromMap(
+                  doc.data(),
+                  doc.id,
+                  sectionId: channelId, // reuse field to hold channelId
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  /// Create a new event inside channels/{channelId}/events.
+  Future<String> createChannelEvent({
+    required String channelId,
+    required String title,
+    String? description,
+    required DateTime eventDate,
+    String? location,
+    String? imageUrl,
+    String? paymentLink,
+    String? registrationLink,
+    required String createdBy,
+    required String createdByName,
+  }) async {
+    final docRef = await _db
+        .collection('channels')
+        .doc(channelId)
+        .collection('events')
+        .add({
+      'title': title,
+      'description': description,
+      'section_id': channelId, // keeps compatibility with existing model
+      'created_by': createdBy,
+      'created_by_name': createdByName,
+      'event_date': Timestamp.fromDate(eventDate),
+      'location': location,
+      'image_url': imageUrl,
+      'payment_link': paymentLink,
+      'registration_link': registrationLink,
+      'created_at': FieldValue.serverTimestamp(),
+    });
+
+    return docRef.id;
   }
 }

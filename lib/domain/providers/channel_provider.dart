@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:campuscast/domain/repositories/channel_repository.dart';
 import 'package:campuscast/data/models/channel_model.dart';
+import 'package:campuscast/data/models/event_model.dart';
 
 final _repo = ChannelRepository();
 
@@ -32,4 +33,12 @@ final allChannelsProvider =
 final channelBroadcastsProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>((ref, channelId) {
   return _repo.streamChannelBroadcasts(channelId);
+});
+
+// ── Channel events provider ──────────────────────────────────────
+/// Watches events for a specific channel from
+/// channels/{channelId}/events.
+final channelEventsProvider =
+    StreamProvider.family<List<EventModel>, String>((ref, channelId) {
+  return _repo.streamChannelEvents(channelId);
 });
