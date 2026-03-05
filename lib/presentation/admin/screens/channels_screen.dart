@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../data/firebase/admin/admin_firestore_service.dart';
 import '../../../domain/providers/admin_provider.dart';
 import 'channel_detail_screen.dart';
 
@@ -14,280 +13,437 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
+  String _searchQuery = '';
+  String _selectedFilter = 'All';
 
-  void _showCreateChannelSheet() {
-    final channelNameController = TextEditingController();
-    final ownerNameController = TextEditingController();
-    final ownerEmailController = TextEditingController();
-    String generatedPassword = AdminFirestoreService.generatePassword();
-    String? selectedSectionId;
-    String? selectedSectionName;
-    bool isSaving = false;
-    bool isDefault = true;
+  // ── Toggle Global Channel in Firestore ──────────────────
+  Future<void> _toggleGlobal(String channelId, bool current) async {
+    await FirebaseFirestore.instance
+        .collection('channels')
+        .doc(channelId)
+        .update({'is_default': !current});
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(!current
+              ? '✅ Channel set as Global'
+              : '❌ Channel removed from Global'),
+          backgroundColor:
+              !current ? AppColors.success : AppColors.error,
+        ),
+      );
+    }
+  }
 
-    showModalBottomSheet(
+  // ── Delete Channel ───────────────────────────────────────
+  void _confirmDelete(String channelId, String channelName) {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.cardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBg,
+        title: const Text('Delete Channel',
+            style: TextStyle(
+                color: AppColors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to delete "$channelName"?',
+          style: const TextStyle(color: AppColors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await FirebaseFirestore.instance
+                  .collection('channels')
+                  .doc(channelId)
+                  .delete();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Channel deleted'),
+                      backgroundColor: AppColors.error),
+                );
+              }
+            },
+            child: const Text('Delete',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final sectionsAsync = ref.watch(sectionsStreamProvider);
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24, right: 24, top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Create Channel', style: TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: channelNameController,
-                      style: const TextStyle(color: AppColors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Channel Name (e.g. Coding Club)',
-                        hintStyle: const TextStyle(color: AppColors.grey),
-                        filled: true, fillColor: AppColors.primaryBg,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Section Dropdown
-                    sectionsAsync.when(
-                      loading: () => const CircularProgressIndicator(color: AppColors.accentBlue),
-                      error: (e, _) => Text('Error loading sections', style: TextStyle(color: AppColors.error)),
-                      data: (sections) => DropdownButtonFormField<String>(
-                        value: selectedSectionId,
-                        dropdownColor: AppColors.cardBg,
-                        style: const TextStyle(color: AppColors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Select Section',
-                          hintStyle: const TextStyle(color: AppColors.grey),
-                          filled: true, fillColor: AppColors.primaryBg,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                        ),
-                        items: sections.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
-                        onChanged: (val) {
-                          setSheetState(() {
-                            selectedSectionId = val;
-                            selectedSectionName = sections.firstWhere((s) => s.id == val).name;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Global channel checkbox
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: isDefault,
-                          onChanged: (val) => setSheetState(() => isDefault = val ?? false),
-                          activeColor: AppColors.accentBlue,
-                        ),
-                        const Expanded(
-                          child: Text(
-                            'Global Channel (Default to everyone enrolled in the section)',
-                            style: TextStyle(color: AppColors.white, fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('CHANNEL OWNER', style: TextStyle(color: AppColors.grey, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: ownerNameController,
-                      style: const TextStyle(color: AppColors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Owner Name',
-                        hintStyle: const TextStyle(color: AppColors.grey),
-                        prefixIcon: const Icon(Icons.person, color: AppColors.grey),
-                        filled: true, fillColor: AppColors.primaryBg,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: ownerEmailController,
-                      style: const TextStyle(color: AppColors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Owner Email',
-                        hintStyle: const TextStyle(color: AppColors.grey),
-                        prefixIcon: const Icon(Icons.email, color: AppColors.grey),
-                        filled: true, fillColor: AppColors.primaryBg,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: 12),
-                    // Password
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      decoration: BoxDecoration(color: AppColors.primaryBg, borderRadius: BorderRadius.circular(8)),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock, color: AppColors.grey, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(generatedPassword, style: const TextStyle(color: AppColors.white, fontFamily: 'monospace'))),
-                          IconButton(
-                            icon: const Icon(Icons.refresh, color: AppColors.grey, size: 20),
-                            onPressed: () => setSheetState(() => generatedPassword = AdminFirestoreService.generatePassword()),
-                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.copy, color: AppColors.grey, size: 20),
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: generatedPassword));
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(content: Text('Password copied!'), duration: Duration(seconds: 1)),
-                              );
-                            },
-                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity, height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                        onPressed: isSaving ? null : () async {
-                          if (channelNameController.text.trim().isEmpty ||
-                              selectedSectionId == null ||
-                              ownerNameController.text.trim().isEmpty ||
-                              ownerEmailController.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('Please fill all fields.'), backgroundColor: AppColors.error),
-                            );
-                            return;
-                          }
-                          setSheetState(() => isSaving = true);
-                          try {
-                            await ref.read(adminRepositoryProvider).createChannelWithOwner(
-                              channelName: channelNameController.text.trim(),
-                              sectionId: selectedSectionId!,
-                              sectionName: selectedSectionName ?? '',
-                              ownerName: ownerNameController.text.trim(),
-                              ownerEmail: ownerEmailController.text.trim(),
-                              ownerPassword: generatedPassword,
-                              collegeTrust: '',
-                              isDefault: isDefault,
-                            );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          } catch (e) {
-                            if (ctx.mounted) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-                              );
-                            }
-                          } finally {
-                            setSheetState(() => isSaving = false);
-                          }
-                        },
-                        child: isSaving
-                            ? const CircularProgressIndicator(color: AppColors.white, strokeWidth: 2)
-                            : const Text('Create Channel & Owner', style: TextStyle(color: AppColors.white, fontSize: 16)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final channelsAsync = ref.watch(channelsStreamProvider);
+    final sectionsAsync = ref.watch(sectionsStreamProvider);
 
     return Scaffold(
       backgroundColor: AppColors.primaryBg,
       appBar: AppBar(
-        title: const Text('Channels', style: TextStyle(color: AppColors.white, fontSize: 24, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.primaryBg,
         elevation: 0,
+        title: const Text('Channels',
+            style: TextStyle(
+                color: AppColors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle, color: AppColors.accentBlue, size: 30),
-            onPressed: _showCreateChannelSheet,
+            icon: const Icon(Icons.add, color: AppColors.white),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Go to a Section to add a channel')),
+              );
+            },
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: channelsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accentBlue)),
-        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.error))),
-        data: (channels) {
-          if (channels.isEmpty) {
-            return const Center(child: Text('No channels yet. Tap + to create one.', style: TextStyle(color: AppColors.grey)));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: channels.length,
-            itemBuilder: (context, index) {
-              final channel = channels[index];
-              return InkWell(
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (context) => ChannelDetailScreen(channel: channel),
-                  ));
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12)),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(color: AppColors.accentBlue, borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.podcasts, color: AppColors.white),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
+        children: [
+          // ── Search Bar ──────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 8),
+            child: TextField(
+              style: const TextStyle(color: AppColors.white),
+              decoration: InputDecoration(
+                hintText: 'Search channels...',
+                hintStyle:
+                    const TextStyle(color: AppColors.grey),
+                prefixIcon: const Icon(Icons.search,
+                    color: AppColors.grey),
+                filled: true,
+                fillColor: AppColors.cardBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) =>
+                  setState(() => _searchQuery = val.toLowerCase()),
+            ),
+          ),
+
+          // ── Filter Chips ────────────────────────────────
+          sectionsAsync.when(
+            loading: () => const SizedBox(height: 44),
+            error: (_, __) => const SizedBox(height: 44),
+            data: (sections) {
+              final filters = [
+                'All',
+                'Global',
+                ...sections.map((s) => s.name)
+              ];
+              return SizedBox(
+                height: 44,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16),
+                  itemCount: filters.length,
+                  itemBuilder: (ctx, i) {
+                    final f = filters[i];
+                    final isSelected = _selectedFilter == f;
+                    return GestureDetector(
+                      onTap: () =>
+                          setState(() => _selectedFilter = f),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.accentBlue
+                              : AppColors.cardBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.accentBlue
+                                : Colors.white24,
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Text(channel.name, style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(color: AppColors.accentBlue.withOpacity(0.3), borderRadius: BorderRadius.circular(4)),
-                                  child: Text(channel.sectionName, style: const TextStyle(color: AppColors.white, fontSize: 11)),
+                            if (f == 'Global') ...[
+                              const Icon(Icons.public,
+                                  size: 12,
+                                  color: Colors.green),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(f,
+                                style: TextStyle(
+                                    color: isSelected
+                                        ? AppColors.white
+                                        : AppColors.grey,
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+
+          // ── Channels List ───────────────────────────────
+          Expanded(
+            child: channelsAsync.when(
+              loading: () => const Center(
+                  child: CircularProgressIndicator(
+                      color: AppColors.accentBlue)),
+              error: (e, _) => Center(
+                  child: Text('Error: $e',
+                      style: const TextStyle(
+                          color: AppColors.error))),
+              data: (channels) {
+                // Apply filters
+                final filtered = channels.where((c) {
+                  final matchSearch = _searchQuery.isEmpty ||
+                      c.name
+                          .toLowerCase()
+                          .contains(_searchQuery) ||
+                      c.sectionName
+                          .toLowerCase()
+                          .contains(_searchQuery);
+                  final matchFilter = _selectedFilter == 'All' ||
+                      (_selectedFilter == 'Global' &&
+                          c.isDefault) ||
+                      c.sectionName == _selectedFilter;
+                  return matchSearch && matchFilter;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.podcasts_rounded,
+                            color: AppColors.grey, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          _selectedFilter == 'Global'
+                              ? 'No global channels yet'
+                              : 'No channels found',
+                          style: const TextStyle(
+                              color: AppColors.grey,
+                              fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (ctx, i) {
+                    final channel = filtered[i];
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ChannelDetailScreen(
+                                  channel: channel))),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: channel.isDefault
+                                ? Colors.green.withOpacity(0.3)
+                                : Colors.white10,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // ── Channel Avatar ────────────
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: channel.isDefault
+                                    ? Colors.green.withOpacity(0.15)
+                                    : const Color(0xFF8CD8B8)
+                                        .withOpacity(0.2),
+                                borderRadius:
+                                    BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  channel.name[0].toUpperCase(),
+                                  style: TextStyle(
+                                      color: channel.isDefault
+                                          ? Colors.green
+                                          : const Color(0xFF8CD8B8),
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  channel.ownerName ?? 'No owner',
-                                  style: const TextStyle(color: AppColors.grey, fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+
+                            // ── Channel Info ──────────────
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(channel.name,
+                                      style: const TextStyle(
+                                          color: AppColors.white,
+                                          fontSize: 15,
+                                          fontWeight:
+                                              FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  // Tags row
+                                  Row(
+                                    children: [
+                                      // Section pill
+                                      Container(
+                                        padding: const EdgeInsets
+                                            .symmetric(
+                                            horizontal: 8,
+                                            vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accentBlue
+                                              .withOpacity(0.3),
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                                  6),
+                                        ),
+                                        child: Text(
+                                            channel.sectionName,
+                                            style: const TextStyle(
+                                                color: AppColors.white,
+                                                fontSize: 10)),
+                                      ),
+                                      if (channel.isDefault) ...[
+                                        const SizedBox(width: 6),
+                                        // Global pill
+                                        Container(
+                                          padding: const EdgeInsets
+                                              .symmetric(
+                                              horizontal: 8,
+                                              vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green
+                                                .withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(
+                                                    6),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.public,
+                                                  size: 10,
+                                                  color: Colors.green),
+                                              SizedBox(width: 3),
+                                              Text('Global',
+                                                  style: TextStyle(
+                                                      color:
+                                                          Colors.green,
+                                                      fontSize: 10)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    channel.ownerName != null &&
+                                            channel
+                                                .ownerName!.isNotEmpty
+                                        ? 'Owner: ${channel.ownerName}'
+                                        : 'No owner assigned',
+                                    style: const TextStyle(
+                                        color: AppColors.grey,
+                                        fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // ── Actions ───────────────────
+                            Column(
+                              children: [
+                                // Global toggle
+                                GestureDetector(
+                                  onTap: () => _toggleGlobal(
+                                      channel.id, channel.isDefault),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: channel.isDefault
+                                          ? Colors.green
+                                              .withOpacity(0.15)
+                                          : AppColors.primaryBg,
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: channel.isDefault
+                                            ? Colors.green
+                                                .withOpacity(0.5)
+                                            : Colors.white24,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.public,
+                                      size: 16,
+                                      color: channel.isDefault
+                                          ? Colors.green
+                                          : AppColors.grey,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                // Delete
+                                GestureDetector(
+                                  onTap: () => _confirmDelete(
+                                      channel.id, channel.name),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red
+                                          .withOpacity(0.1),
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Colors.red
+                                              .withOpacity(0.3)),
+                                    ),
+                                    child: const Icon(Icons.delete,
+                                        size: 16, color: Colors.red),
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: AppColors.grey),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
