@@ -48,13 +48,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (userModel != null) {
         // Navigate based on role
         if (userModel.role == UserRole.admin) {
-          context.go(AppRouter.adminDashboard);
+          context.go(AppRoutes.adminDashboard);
         } else if (userModel.role == UserRole.section_owner) {
-          context.go(AppRouter.sectionDashboard);
+          context.go(AppRoutes.sectionDashboard);
         } else if (userModel.role == UserRole.channel_owner) {
-          context.go(AppRouter.channelDashboard);
+          context.go(AppRoutes.channelDashboard);
         } else {
-          context.go(AppRouter.studentHome);
+          context.go(AppRoutes.studentHome);
         }
       }
     } catch (e) {
@@ -170,7 +170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextButton(
-                        onPressed: () => context.push(AppRouter.register),
+                        onPressed: () => context.push(AppRoutes.register),
                         child: const Text(
                           'New Student? Register',
                           style: TextStyle(color: AppColors.grey),

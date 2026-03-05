@@ -13,7 +13,7 @@ class ChannelRepository {
         .doc(channelId)
         .snapshots()
         .map((snap) =>
-            ChannelModel.fromMap(snap.id, snap.data() ?? {}));
+            ChannelModel.fromMap(snap.data() ?? {}, snap.id));
   }
 
   /// Real-time stream of the listener count for a broadcast.
@@ -25,7 +25,7 @@ class ChannelRepository {
   Future<ChannelModel?> getChannel(String channelId) async {
     final snap = await _db.collection('channels').doc(channelId).get();
     if (!snap.exists) return null;
-    return ChannelModel.fromMap(snap.id, snap.data()!);
+    return ChannelModel.fromMap(snap.data()!, snap.id);
   }
 
   /// Real-time stream of ALL channels (for the home screen list).
@@ -34,7 +34,7 @@ class ChannelRepository {
         .collection('channels')
         .snapshots()
         .map((snap) => snap.docs
-            .map((doc) => ChannelModel.fromMap(doc.id, doc.data()))
+            .map((doc) => ChannelModel.fromMap(doc.data(), doc.id))
             .toList());
   }
 }

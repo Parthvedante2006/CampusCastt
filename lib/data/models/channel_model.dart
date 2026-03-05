@@ -1,46 +1,50 @@
 class ChannelModel {
-  final String channelId;
+  final String id;
   final String name;
+  final String sectionId;
+  final String sectionName;
+  final String? ownerName;
+  final String? ownerEmail;
+  final bool isDefault;
   final bool isLive;
   final String? activeBroadcastId;
 
-  const ChannelModel({
-    required this.channelId,
+  ChannelModel({
+    required this.id,
     required this.name,
-    required this.isLive,
+    required this.sectionId,
+    required this.sectionName,
+    this.ownerName,
+    this.ownerEmail,
+    this.isDefault = false,
+    this.isLive = false,
     this.activeBroadcastId,
   });
 
-  factory ChannelModel.fromMap(String id, Map<String, dynamic> map) {
+  factory ChannelModel.fromMap(Map<String, dynamic> map, String docId) {
     return ChannelModel(
-      channelId:         id,
-      name:              map['name']              as String? ?? '',
-      isLive:            map['isLive']            as bool?   ?? false,
-      activeBroadcastId: map['activeBroadcastId'] as String?,
+      id: docId,
+      name: map['name'] ?? '',
+      sectionId: map['section_id'] ?? '',
+      sectionName: map['section_name'] ?? '',
+      ownerName: map['owner_name'],
+      ownerEmail: map['owner_email'],
+      isDefault: map['is_default'] ?? false,
+      isLive: map['is_live'] ?? false,
+      activeBroadcastId: map['active_broadcast_id'],
     );
   }
 
-  Map<String, dynamic> toMap() => {
-    'name':              name,
-    'isLive':            isLive,
-    'activeBroadcastId': activeBroadcastId,
-  };
-
-  ChannelModel copyWith({
-    String?  channelId,
-    String?  name,
-    bool?    isLive,
-    String?  activeBroadcastId,
-  }) {
-    return ChannelModel(
-      channelId:         channelId         ?? this.channelId,
-      name:              name              ?? this.name,
-      isLive:            isLive            ?? this.isLive,
-      activeBroadcastId: activeBroadcastId ?? this.activeBroadcastId,
-    );
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'section_id': sectionId,
+      'section_name': sectionName,
+      'owner_name': ownerName,
+      'owner_email': ownerEmail,
+      'is_default': isDefault,
+      'is_live': isLive,
+      'active_broadcast_id': activeBroadcastId,
+    };
   }
-
-  @override
-  String toString() =>
-      'ChannelModel(id: $channelId, name: $name, isLive: $isLive, broadcastId: $activeBroadcastId)';
 }

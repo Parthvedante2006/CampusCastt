@@ -48,6 +48,8 @@ dependencies:
   record: ^6.0.0
   socket_io_client: ^3.0.2
   permission_handler: ^11.3.1
+  file_picker: ^8.0.0
+  csv: ^6.0.0
   uuid: ^4.4.0
 
 dev_dependencies:
