@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/channel_provider.dart';
+import '../../../core/routes/app_router.dart';
 import '../widgets/student_bottom_nav_bar.dart';
 
 // Tabs
@@ -108,6 +110,7 @@ class StudentBroadcastsTab extends ConsumerWidget {
               children: [
                 // Live Broadcasts
                 _buildBroadcastsSection(
+                  context,
                   ref,
                   user.joinedChannels,
                   filter: 'live',
@@ -117,6 +120,7 @@ class StudentBroadcastsTab extends ConsumerWidget {
 
                 // Past Broadcasts
                 _buildBroadcastsSection(
+                  context,
                   ref,
                   user.joinedChannels,
                   filter: 'past',
@@ -132,6 +136,7 @@ class StudentBroadcastsTab extends ConsumerWidget {
   }
 
   Widget _buildBroadcastsSection(
+    BuildContext context,
     WidgetRef ref,
     List<String> joinedChannelIds,
     {required String filter, required String title}
@@ -151,7 +156,7 @@ class StudentBroadcastsTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
-              child: _buildBroadcasts(ref, joinedChannelIds[index], filter),
+              child: _buildBroadcasts(context, ref, joinedChannelIds[index], filter),
             );
           },
         ),
@@ -159,9 +164,63 @@ class StudentBroadcastsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildBroadcasts(WidgetRef ref, String channelId, String filter) {
+  Widget _buildBroadcasts(BuildContext context, WidgetRef ref, String channelId, String filter) {
     final broadcastsAsync = ref.watch(channelBroadcastsProvider(channelId));
+    final replaysAsync = ref.watch(channelAnnouncementReplaysProvider(channelId));
     final channelAsync = ref.watch(channelProvider(channelId));
+
+    final channelName = channelAsync.maybeWhen(
+      data: (channel) => channel.name,
+      orElse: () => 'Channel',
+    );
+
+    if (filter == 'past') {
+      return replaysAsync.when(
+        loading: () => const SizedBox.shrink(),
+        error: (_, __) => const SizedBox.shrink(),
+        data: (replays) {
+          return broadcastsAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (broadcasts) {
+              final filteredBroadcasts = broadcasts.where((b) {
+                final status = (b['status'] ?? 'ended') as String;
+                return status != 'live';
+              }).toList();
+
+              final cards = <Widget>[];
+
+              for (final replay in replays) {
+                cards.add(
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _buildAnnouncementReplayCard(context, replay, channelName),
+                  ),
+                );
+              }
+
+              for (final broadcast in filteredBroadcasts) {
+                cards.add(
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _buildBroadcastCard(context, broadcast, channelAsync, channelName),
+                  ),
+                );
+              }
+
+              if (cards.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: cards,
+              );
+            },
+          );
+        },
+      );
+    }
 
     return broadcastsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: Colors.blueAccent)),
@@ -186,7 +245,7 @@ class StudentBroadcastsTab extends ConsumerWidget {
           children: filtered.map((broadcast) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
-              child: _buildBroadcastCard(broadcast, channelAsync),
+              child: _buildBroadcastCard(context, broadcast, channelAsync, channelName),
             );
           }).toList(),
         );
@@ -194,10 +253,18 @@ class StudentBroadcastsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildBroadcastCard(Map<String, dynamic> broadcast, AsyncValue<dynamic> channelAsync) {
+  Widget _buildBroadcastCard(
+    BuildContext context,
+    Map<String, dynamic> broadcast,
+    AsyncValue<dynamic> channelAsync,
+    String channelName,
+  ) {
     final title = broadcast['title'] ?? broadcast['broadcastId'] ?? 'Broadcast';
+    final description = (broadcast['description'] as String?)?.trim() ?? '';
     final status = broadcast['status'] ?? 'ended';
     final listeners = broadcast['listeners'] ?? 0;
+    final broadcastId = (broadcast['broadcastId'] ?? broadcast['id'] ?? '').toString();
+    final replayUrl = (broadcast['audio_url'] ?? broadcast['streamUrl'] ?? '').toString();
     final startedAt = broadcast['startedAt'];
     final endedAt = broadcast['endedAt'];
 
@@ -287,6 +354,15 @@ class StudentBroadcastsTab extends ConsumerWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
           const SizedBox(height: 8),
 
           // Date and time
@@ -336,13 +412,130 @@ class StudentBroadcastsTab extends ConsumerWidget {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                // Navigate to live player
-                // This would need the broadcast ID to play
+                if (status == 'live' && broadcastId.isNotEmpty) {
+                  context.push(AppRoutes.livePlayer, extra: {
+                    'broadcastId': broadcastId,
+                    'channelName': channelName,
+                  });
+                  return;
+                }
+
+                if (replayUrl.isNotEmpty) {
+                  context.push(AppRoutes.replayPlayer, extra: {
+                    'audioUrl': replayUrl,
+                    'title': title,
+                    'channelName': channelName,
+                  });
+                  return;
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Replay audio is not available yet for this broadcast.')),
+                );
               },
               icon: const Icon(Icons.play_arrow, size: 16),
               label: Text(status == 'live' ? 'Watch Live' : 'Watch Replay'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: status == 'live' ? const Color(0xFFFF4B4D) : const Color(0xFF1D3C78),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementReplayCard(
+    BuildContext context,
+    Map<String, dynamic> announcement,
+    String channelName,
+  ) {
+    final title = (announcement['title'] ?? 'Announcement Replay').toString();
+    final description = (announcement['description'] ?? '').toString().trim();
+    final audioUrl = (announcement['audio_url'] ?? '').toString();
+    final scheduledAt = announcement['scheduled_at'];
+
+    String dateText = 'N/A';
+    if (scheduledAt != null) {
+      try {
+        final dt = scheduledAt.toDate();
+        dateText = DateFormat('MMM dd, yyyy • h:mm a').format(dt);
+      } catch (_) {
+        dateText = 'N/A';
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2330),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3B67AA).withOpacity(0.4), width: 1),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                channelName,
+                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B67AA).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'ANNOUNCEMENT',
+                  style: TextStyle(color: Color(0xFF3B67AA), fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            dateText,
+            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: audioUrl.isEmpty
+                  ? null
+                  : () {
+                      context.push(AppRoutes.replayPlayer, extra: {
+                        'audioUrl': audioUrl,
+                        'title': title,
+                        'channelName': channelName,
+                      });
+                    },
+              icon: const Icon(Icons.play_arrow, size: 16),
+              label: const Text('Play Announcement Audio'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D3C78),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../domain/providers/student_provider.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/channel_provider.dart';
 import '../../../data/models/channel_model.dart';
 import '../../../data/models/event_model.dart';
+import '../../../core/routes/app_router.dart';
 
 class ChannelDetailScreen extends ConsumerStatefulWidget {
   final String channelId;
@@ -219,21 +221,170 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> with 
   }
 
   Widget _buildAnnouncementsTab() {
+    final broadcastsAsync = ref.watch(channelBroadcastsProvider(widget.channelId));
+    final scheduledAsync = ref.watch(channelScheduledAnnouncementsProvider(widget.channelId));
+    final replaysAsync = ref.watch(channelAnnouncementReplaysProvider(widget.channelId));
+
     return ListView(
-      physics: const NeverScrollableScrollPhysics(), // Scroll managed by outer scroll view
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       children: [
-        // Live Now Card Mockup
-        _buildLiveNowCard(),
-        const SizedBox(height: 16),
-        // Scheduled Card Mockup
-        _buildScheduledCard(),
-        const SizedBox(height: 16),
-        // Replay/Past Broadcast Mockup
-        _buildReplayCard("GSOC 2024 Roadmap", "2 days ago", "Step-by-step guide for open-source contributions. Key deadlines mentioned: Jan 15th for initial drafts."),
-        const SizedBox(height: 16),
-        _buildReplayCard("Web3 & Blockchain Basics", "Last Friday", "Intro to Ethereum, Smart Contracts, and the future of decentralized apps. Q&A session at the end."),
-        const SizedBox(height: 32),
+        // Live Broadcasts Section
+        broadcastsAsync.when(
+          data: (broadcasts) {
+            final liveBroadcasts = broadcasts.where((b) => b['status'] == 'live').toList();
+            if (liveBroadcasts.isEmpty) return const SizedBox.shrink();
+            
+            return Column(
+              children: [
+                ...liveBroadcasts.map((broadcast) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: _buildLiveBroadcastCard(broadcast),
+                )),
+              ],
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+
+        // Scheduled Announcements Section
+        scheduledAsync.when(
+          data: (scheduled) {
+            if (scheduled.isEmpty) return const SizedBox.shrink();
+            
+            return Column(
+              children: [
+                ...scheduled.map((announcement) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: _buildScheduledAnnouncementCard(announcement),
+                )),
+              ],
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+
+        // Past Section: Ended Broadcasts + Announcement Replays
+        broadcastsAsync.when(
+          data: (broadcasts) {
+            final endedBroadcasts = broadcasts.where((b) => b['status'] == 'ended').toList();
+            
+            return replaysAsync.when(
+              data: (replays) {
+                // Combine ended broadcasts and announcement replays
+                final allPastItems = <Map<String, dynamic>>[];
+                
+                // Add ended broadcasts with a type marker
+                for (final broadcast in endedBroadcasts) {
+                  allPastItems.add({...broadcast, '_type': 'broadcast'});
+                }
+                
+                // Add announcement replays with a type marker
+                for (final replay in replays) {
+                  allPastItems.add({...replay, '_type': 'announcement'});
+                }
+                
+                if (allPastItems.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: Center(
+                      child: Text(
+                        'No past announcements yet',
+                        style: TextStyle(color: Colors.white54, fontSize: 14),
+                      ),
+                    ),
+                  );
+                }
+                
+                // Sort by time (most recent first)
+                allPastItems.sort((a, b) {
+                  DateTime? aDate;
+                  DateTime? bDate;
+                  
+                  if (a['_type'] == 'broadcast') {
+                    final endedAt = a['endedAt'];
+                    if (endedAt is Timestamp) {
+                      aDate = endedAt.toDate();
+                    }
+                  } else {
+                    final scheduledAt = a['scheduled_at'];
+                    if (scheduledAt is Timestamp) {
+                      aDate = scheduledAt.toDate();
+                    }
+                  }
+                  
+                  if (b['_type'] == 'broadcast') {
+                    final endedAt = b['endedAt'];
+                    if (endedAt is Timestamp) {
+                      bDate = endedAt.toDate();
+                    }
+                  } else {
+                    final scheduledAt = b['scheduled_at'];
+                    if (scheduledAt is Timestamp) {
+                      bDate = scheduledAt.toDate();
+                    }
+                  }
+                  
+                  if (aDate == null && bDate == null) return 0;
+                  if (aDate == null) return 1;
+                  if (bDate == null) return -1;
+                  return bDate.compareTo(aDate); // Most recent first
+                });
+                
+                return Column(
+                  children: [
+                    ...allPastItems.map((item) {
+                      if (item['_type'] == 'broadcast') {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: _buildPastBroadcastCard(item),
+                        );
+                      } else {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: _buildReplayAnnouncementCard(item),
+                        );
+                      }
+                    }),
+                    const SizedBox(height: 32),
+                  ],
+                );
+              },
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: CircularProgressIndicator(color: Colors.blueAccent),
+                ),
+              ),
+              error: (e, st) => Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Center(
+                  child: Text(
+                    'Error loading past announcements: $e',
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ),
+              ),
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(color: Colors.blueAccent),
+            ),
+          ),
+          error: (e, st) => Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Center(
+              child: Text(
+                'Error loading announcements: $e',
+                style: const TextStyle(color: Colors.red, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -460,6 +611,544 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen> with 
     );
   }
 
+
+  Widget _buildLiveBroadcastCard(Map<String, dynamic> broadcast) {
+    final title = broadcast['title']?.toString() ?? 'Untitled Broadcast';
+    final description = broadcast['description']?.toString() ?? '';
+    final broadcastId = broadcast['id']?.toString() ?? '';
+
+    return GestureDetector(
+      onTap: () {
+        if (broadcastId.isNotEmpty) {
+          context.push(
+            AppRoutes.livePlayer,
+            extra: {'broadcastId': broadcastId},
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C191D),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFF4A252A), width: 1),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF4B4D),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'LIVE NOW',
+                  style: TextStyle(
+                    color: Color(0xFFFF4B4D),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                description,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Waveform animation
+                Row(
+                  children: List.generate(
+                    5,
+                    (index) => Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      width: 4,
+                      height: 12.0 + (index % 3) * 6,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4B4D),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (broadcastId.isNotEmpty) {
+                      context.push(
+                        AppRoutes.livePlayer,
+                        extra: {'broadcastId': broadcastId},
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.headphones, color: Colors.white, size: 16),
+                  label: const Text(
+                    'Listen',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF4B4D),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduledAnnouncementCard(Map<String, dynamic> announcement) {
+    final title = announcement['title']?.toString() ?? 'Untitled Announcement';
+    final description = announcement['description']?.toString() ?? '';
+    final scheduledAt = announcement['scheduled_at'];
+    
+    DateTime? scheduledDate;
+    if (scheduledAt is Timestamp) {
+      scheduledDate = scheduledAt.toDate();
+    }
+
+    String timeText = 'SCHEDULED';
+    if (scheduledDate != null) {
+      final now = DateTime.now();
+      final difference = scheduledDate.difference(now);
+      
+      if (scheduledDate.day == now.day &&
+          scheduledDate.month == now.month &&
+          scheduledDate.year == now.year) {
+        timeText = 'SCHEDULED • TODAY, ${DateFormat('h:mm a').format(scheduledDate)}';
+      } else if (difference.inDays == 1) {
+        timeText = 'SCHEDULED • TOMORROW, ${DateFormat('h:mm a').format(scheduledDate)}';
+      } else if (difference.inDays < 7) {
+        timeText = 'SCHEDULED • ${DateFormat('EEEE, h:mm a').format(scheduledDate)}';
+      } else {
+        timeText = 'SCHEDULED • ${DateFormat('MMM dd, h:mm a').format(scheduledDate)}';
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF16202E),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.access_time, color: Color(0xFF3B67AA), size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  timeText,
+                  style: const TextStyle(
+                    color: Color(0xFF3B67AA),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 1.0,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () {
+                // TODO: Implement reminder functionality
+              },
+              icon: const Icon(Icons.notifications_active, color: Color(0xFF3B67AA), size: 16),
+              label: const Text(
+                'Remind Me',
+                style: TextStyle(color: Color(0xFF3B67AA), fontWeight: FontWeight.bold),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF1A263B),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPastBroadcastCard(Map<String, dynamic> broadcast) {
+    final title = broadcast['title']?.toString() ?? 'Untitled Broadcast';
+    final description = broadcast['description']?.toString() ?? '';
+    final endedAt = broadcast['endedAt'];
+    final channelAsync = ref.watch(channelProvider(widget.channelId));
+    final channelName = channelAsync.value?.name ?? 'Channel';
+
+    DateTime? endedDate;
+    if (endedAt is Timestamp) {
+      endedDate = endedAt.toDate();
+    }
+
+    String timeAgo = 'Past';
+    if (endedDate != null) {
+      final now = DateTime.now();
+      final difference = now.difference(endedDate);
+      
+      if (difference.inDays == 0) {
+        if (difference.inHours == 0) {
+          timeAgo = '${difference.inMinutes} min ago';
+        } else {
+          timeAgo = '${difference.inHours} hours ago';
+        }
+      } else if (difference.inDays == 1) {
+        timeAgo = 'Yesterday';
+      } else if (difference.inDays < 7) {
+        timeAgo = '${difference.inDays} days ago';
+      } else {
+        timeAgo = DateFormat('MMM dd').format(endedDate);
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2330),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E3D52),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'PAST BROADCAST',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 9,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              Text(
+                timeAgo,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121822),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.info_outline, color: Color(0xFF3B67AA), size: 14),
+                      SizedBox(width: 6),
+                      Text(
+                        'DESCRIPTION',
+                        style: TextStyle(
+                          color: Color(0xFF3B67AA),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121822),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.info, color: Color(0xFF6B8DC3), size: 14),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This was a live broadcast. Recording not available.',
+                    style: TextStyle(
+                      color: Color(0xFF6B8DC3),
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplayAnnouncementCard(Map<String, dynamic> announcement) {
+    final title = announcement['title']?.toString() ?? 'Untitled Announcement';
+    final description = announcement['description']?.toString() ?? '';
+    final audioUrl = announcement['audio_url']?.toString() ?? '';
+    final scheduledAt = announcement['scheduled_at'];
+    final channelAsync = ref.watch(channelProvider(widget.channelId));
+    final channelName = channelAsync.value?.name ?? 'Channel';
+
+    DateTime? scheduledDate;
+    if (scheduledAt is Timestamp) {
+      scheduledDate = scheduledAt.toDate();
+    }
+
+    String timeAgo = 'Past';
+    if (scheduledDate != null) {
+      final now = DateTime.now();
+      final difference = now.difference(scheduledDate);
+      
+      if (difference.inDays == 0) {
+        if (difference.inHours == 0) {
+          timeAgo = '${difference.inMinutes} min ago';
+        } else {
+          timeAgo = '${difference.inHours} hours ago';
+        }
+      } else if (difference.inDays == 1) {
+        timeAgo = 'Yesterday';
+      } else if (difference.inDays < 7) {
+        timeAgo = '${difference.inDays} days ago';
+      } else {
+        timeAgo = DateFormat('MMM dd').format(scheduledDate);
+      }
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (audioUrl.isNotEmpty) {
+          context.push(
+            AppRoutes.replayPlayer,
+            extra: {
+              'audioUrl': audioUrl,
+              'title': title,
+              'channelName': channelName,
+            },
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B2330),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  timeAgo,
+                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                ),
+              ],
+            ),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121822),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.info_outline, color: Color(0xFF3B67AA), size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          'DESCRIPTION',
+                          style: TextStyle(
+                            color: Color(0xFF3B67AA),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            // Play button
+            GestureDetector(
+              onTap: () {
+                if (audioUrl.isNotEmpty) {
+                  context.push(
+                    AppRoutes.replayPlayer,
+                    extra: {
+                      'audioUrl': audioUrl,
+                      'title': title,
+                      'channelName': channelName,
+                    },
+                  );
+                }
+              },
+              child: Row(
+                children: [
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1D3C78),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E3D52),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Tap to play',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildLiveNowCard() {
     return Container(

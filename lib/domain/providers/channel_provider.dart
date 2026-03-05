@@ -35,6 +35,20 @@ final channelBroadcastsProvider =
   return _repo.streamChannelBroadcasts(channelId);
 });
 
+// ── Completed channel announcement replays provider ───────────
+/// Streams finished scheduled announcements with playable audio_url.
+final channelAnnouncementReplaysProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, channelId) {
+  return _repo.streamChannelAnnouncementReplays(channelId);
+});
+
+// ── Upcoming scheduled announcements provider ─────────────────
+/// Streams upcoming scheduled announcements for a channel.
+final channelScheduledAnnouncementsProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, channelId) {
+  return _repo.streamChannelScheduledAnnouncements(channelId);
+});
+
 // ── Channel events provider ──────────────────────────────────────
 /// Watches events for a specific channel from
 /// channels/{channelId}/events.

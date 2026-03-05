@@ -39,10 +39,18 @@ class BroadcastNotifier extends Notifier<BroadcastNotifierState> {
   BroadcastNotifierState build() => const BroadcastNotifierState();
 
   /// Called when the moderator taps GO LIVE.
-  Future<void> goLive(String channelId) async {
+  Future<void> goLive(
+    String channelId, {
+    required String title,
+    String? description,
+  }) async {
     state = state.copyWith(state: BroadcastState.starting);
     try {
-      final broadcastId = await _repo.startBroadcast(channelId);
+      final broadcastId = await _repo.startBroadcast(
+        channelId,
+        title: title,
+        description: description,
+      );
       state = state.copyWith(
         state:       BroadcastState.live,
         broadcastId: broadcastId,

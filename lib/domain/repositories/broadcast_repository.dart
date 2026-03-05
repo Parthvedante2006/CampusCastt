@@ -11,7 +11,11 @@ class BroadcastRepository {
 
   /// Start a new broadcast for [channelId].
   /// Returns the generated [broadcastId] so the caller can track it.
-  Future<String> startBroadcast(String channelId) async {
+  Future<String> startBroadcast(
+    String channelId, {
+    required String title,
+    String? description,
+  }) async {
     // 1. Generate a unique broadcast ID
     final broadcastId = _uuid.v4();
 
@@ -36,6 +40,8 @@ class BroadcastRepository {
       broadcastId: broadcastId,
       channelId:   channelId,
       streamUrl:   streamUrl,
+      title:       title,
+      description: description,
     );
 
     // 6. Mark the channel as live

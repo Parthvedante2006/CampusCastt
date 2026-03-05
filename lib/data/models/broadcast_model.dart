@@ -2,6 +2,8 @@ class BroadcastModel {
   final String broadcastId;
   final String channelId;
   final String streamUrl;
+  final String title;
+  final String description;
   final int listeners;
   final String status; // "live" | "ended" | "idle"
 
@@ -9,6 +11,8 @@ class BroadcastModel {
     required this.broadcastId,
     required this.channelId,
     required this.streamUrl,
+    required this.title,
+    required this.description,
     required this.listeners,
     required this.status,
   });
@@ -18,6 +22,8 @@ class BroadcastModel {
       broadcastId: map['broadcastId'] as String? ?? '',
       channelId:   map['channelId']   as String? ?? '',
       streamUrl:   map['streamUrl']   as String? ?? '',
+      title:       map['title']       as String? ?? '',
+      description: map['description'] as String? ?? '',
       listeners:   (map['listeners']  as num?)?.toInt() ?? 0,
       status:      map['status']      as String? ?? 'idle',
     );
@@ -27,6 +33,8 @@ class BroadcastModel {
     'broadcastId': broadcastId,
     'channelId':   channelId,
     'streamUrl':   streamUrl,
+    'title':       title,
+    'description': description,
     'listeners':   listeners,
     'status':      status,
   };
@@ -35,6 +43,8 @@ class BroadcastModel {
     String?  broadcastId,
     String?  channelId,
     String?  streamUrl,
+    String?  title,
+    String?  description,
     int?     listeners,
     String?  status,
   }) {
@@ -42,6 +52,8 @@ class BroadcastModel {
       broadcastId: broadcastId ?? this.broadcastId,
       channelId:   channelId   ?? this.channelId,
       streamUrl:   streamUrl   ?? this.streamUrl,
+      title:       title       ?? this.title,
+      description: description ?? this.description,
       listeners:   listeners   ?? this.listeners,
       status:      status      ?? this.status,
     );

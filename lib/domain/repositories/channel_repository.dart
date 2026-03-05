@@ -52,6 +52,83 @@ class ChannelRepository {
             .toList());
   }
 
+  /// Stream completed scheduled announcements that have playable audio.
+  /// This keeps replay visibility scoped to a specific channel.
+  Stream<List<Map<String, dynamic>>> streamChannelAnnouncementReplays(
+    String channelId,
+  ) {
+    return _db
+        .collection('scheduled_announcements')
+        .where('channel_id', isEqualTo: channelId)
+        .snapshots()
+        .map((snap) {
+      final now = DateTime.now();
+      final items = snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).where((data) {
+        final audioUrl = (data['audio_url'] ?? '').toString().trim();
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        final scheduledAt = data['scheduled_at'];
+
+        DateTime? scheduledDate;
+        if (scheduledAt is Timestamp) {
+          scheduledDate = scheduledAt.toDate();
+        }
+
+        final isDone = status == 'sent' ||
+            (scheduledDate != null && !scheduledDate.isAfter(now));
+
+        return audioUrl.isNotEmpty && isDone && status != 'cancelled';
+      }).toList();
+
+      items.sort((a, b) {
+        final aTs = a['scheduled_at'];
+        final bTs = b['scheduled_at'];
+
+        final aDate = aTs is Timestamp ? aTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = bTs is Timestamp ? bTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+
+      return items;
+    });
+  }
+
+  /// Stream upcoming scheduled announcements for a specific channel.
+  Stream<List<Map<String, dynamic>>> streamChannelScheduledAnnouncements(
+    String channelId,
+  ) {
+    return _db
+        .collection('scheduled_announcements')
+        .where('channel_id', isEqualTo: channelId)
+        .where('status', isEqualTo: 'scheduled')
+        .snapshots()
+        .map((snap) {
+      final now = DateTime.now();
+      final items = snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).where((data) {
+        final scheduledAt = data['scheduled_at'];
+        
+        DateTime? scheduledDate;
+        if (scheduledAt is Timestamp) {
+          scheduledDate = scheduledAt.toDate();
+        }
+
+        // Only upcoming announcements
+        return scheduledDate != null && scheduledDate.isAfter(now);
+      }).toList();
+
+      // Sort by scheduled time (earliest first)
+      items.sort((a, b) {
+        final aTs = a['scheduled_at'];
+        final bTs = b['scheduled_at'];
+
+        final aDate = aTs is Timestamp ? aTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = bTs is Timestamp ? bTs.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return aDate.compareTo(bDate);
+      });
+
+      return items;
+    });
+  }
+
   /// Stream events for a specific channel from the
   /// channels/{channelId}/events subcollection.
   Stream<List<EventModel>> streamChannelEvents(String channelId) {

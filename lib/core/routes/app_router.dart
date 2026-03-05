@@ -13,6 +13,7 @@ import 'package:campuscast/presentation/channel_owner/screens/schedule_screen.da
 import 'package:campuscast/presentation/student/screens/student_home_screen.dart';
 import 'package:campuscast/presentation/student/screens/channel_detail_screen.dart';
 import 'package:campuscast/presentation/student/screens/event_detail_screen.dart';
+import 'package:campuscast/presentation/student/screens/announcement_replay_player_screen.dart';
 
 // ── Route path constants ───────────────────────────────────────
 class AppRoutes {
@@ -39,6 +40,7 @@ class AppRoutes {
   static const home        = '/';
   static const goLive      = '/go-live';
   static const livePlayer  = '/live-player';
+  static const replayPlayer = '/replay-player';
 }
 
 // ── Router definition ──────────────────────────────────────────
@@ -99,10 +101,12 @@ GoRouter createAppRouter({required String initialLocation}) {
       GoRoute(
         path: AppRoutes.scheduleAnnouncement,
         builder: (context, state) {
-          final extra = state.extra as Map<String, String>;
+          final extra = Map<String, dynamic>.from(
+            (state.extra as Map?) ?? const {},
+          );
           return ScheduleAnnouncementScreen(
-            channelId: extra['channelId']!,
-            channelName: extra['channelName']!,
+            channelId: extra['channelId']?.toString() ?? '',
+            channelName: extra['channelName']?.toString() ?? '',
           );
         },
       ),
@@ -115,20 +119,37 @@ GoRouter createAppRouter({required String initialLocation}) {
       GoRoute(
         path: AppRoutes.goLive,
         builder: (context, state) {
-          final extra = state.extra as Map<String, String>;
+          final extra = Map<String, dynamic>.from(
+            (state.extra as Map?) ?? const {},
+          );
           return GoLiveScreen(
-            channelId:   extra['channelId']!,
-            channelName: extra['channelName']!,
+            channelId:   extra['channelId']?.toString() ?? '',
+            channelName: extra['channelName']?.toString() ?? '',
           );
         },
       ),
       GoRoute(
         path: AppRoutes.livePlayer,
         builder: (context, state) {
-          final extra = state.extra as Map<String, String>;
+          final extra = Map<String, dynamic>.from(
+            (state.extra as Map?) ?? const {},
+          );
           return LivePlayerScreen(
-            broadcastId:  extra['broadcastId']!,
-            channelName:  extra['channelName']!,
+            broadcastId:  extra['broadcastId']?.toString() ?? '',
+            channelName:  extra['channelName']?.toString() ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.replayPlayer,
+        builder: (context, state) {
+          final extra = Map<String, dynamic>.from(
+            (state.extra as Map?) ?? const {},
+          );
+          return AnnouncementReplayPlayerScreen(
+            audioUrl: extra['audioUrl']?.toString() ?? '',
+            title: extra['title']?.toString() ?? 'Announcement Replay',
+            channelName: extra['channelName']?.toString() ?? 'Channel',
           );
         },
       ),

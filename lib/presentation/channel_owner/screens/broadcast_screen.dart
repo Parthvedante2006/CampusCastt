@@ -330,7 +330,7 @@ class BroadcastScreen extends ConsumerWidget {
   }
 
   Widget _buildBroadcastCard(Map<String, dynamic> broadcast, int index, BuildContext context) {
-    final title = broadcast['broadcastId'] ?? 'Broadcast';
+    final title = broadcast['title'] ?? broadcast['broadcastId'] ?? 'Broadcast';
     final listeners = broadcast['listeners'] ?? 0;
     final status = broadcast['status'] ?? 'ended';
     final startedAt = broadcast['startedAt'];

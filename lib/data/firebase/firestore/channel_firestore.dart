@@ -34,11 +34,15 @@ class ChannelFirestore {
     required String broadcastId,
     required String channelId,
     required String streamUrl,
+    required String title,
+    String? description,
   }) async {
     await _db.collection('broadcasts').doc(broadcastId).set({
       'broadcastId': broadcastId,
       'channelId':   channelId,
       'streamUrl':   streamUrl,
+      'title':       title,
+      'description': (description ?? '').trim(),
       'listeners':   0,
       'status':      'live',
       'startedAt':   FieldValue.serverTimestamp(),
