@@ -9,14 +9,14 @@ class StudentFirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // -- Sections --
+  // ── Sections ────────────────────────────────────────────────────────────────
   Stream<List<SectionModel>> streamAllSections() {
     return _firestore.collection('sections').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => SectionModel.fromMap(doc.data(), doc.id)).toList();
     });
   }
 
-  // -- Channels --
+  // ── Channels ────────────────────────────────────────────────────────────────
   Stream<List<ChannelModel>> streamChannelsBySection(String sectionId) {
     if (sectionId.isEmpty) return Stream.value([]);
     return _firestore
@@ -40,12 +40,7 @@ class StudentFirestoreService {
 
   Stream<List<ChannelModel>> streamJoinedChannels(List<String> joinedIds) {
     if (joinedIds.isEmpty) return Stream.value([]);
-    // Firestore 'whereIn' limits to 10. If more, need to chunk or retrieve all and filter.
-    // For now, assume < 10 or fetch all and filter client side.
-    return _firestore
-        .collection('channels')
-        .snapshots()
-        .map((snapshot) {
+    return _firestore.collection('channels').snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) => ChannelModel.fromMap(doc.data(), doc.id))
           .where((channel) => joinedIds.contains(channel.id))
@@ -53,20 +48,64 @@ class StudentFirestoreService {
     });
   }
 
-  // -- User Actions --
+  // ── User Actions ────────────────────────────────────────────────────────────
   Future<void> joinChannel(String channelId) async {
     final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    await _firestore.collection('users').doc(uid).update({
-      'joined_channels': FieldValue.arrayUnion([channelId]),
-    });
-    // Update channel member count
-    await _firestore.collection('channels').doc(channelId).update({
-      'member_count': FieldValue.increment(1),
+    if (uid == null) throw Exception('No authenticated user');
+
+    final userRef = _firestore.collection('users').doc(uid);
+
+    await _firestore.runTransaction((transaction) async {
+      final userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) throw Exception('User document not found');
+
+      final joined = List<String>.from(userSnap.data()?['joined_channels'] ?? []);
+
+      if (joined.contains(channelId)) return;
+
+      joined.add(channelId);
+
+      transaction.update(userRef, {
+        'joined_channels': joined,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final channelRef = _firestore.collection('channels').doc(channelId);
+      transaction.update(channelRef, {
+        'member_count': FieldValue.increment(1),
+      });
     });
   }
 
-  // -- Broadcasts --
+  Future<void> leaveChannel(String channelId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('No authenticated user');
+
+    final userRef = _firestore.collection('users').doc(uid);
+
+    await _firestore.runTransaction((transaction) async {
+      final userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) throw Exception('User document not found');
+
+      final joined = List<String>.from(userSnap.data()?['joined_channels'] ?? []);
+
+      if (!joined.contains(channelId)) return;
+
+      joined.remove(channelId);
+
+      transaction.update(userRef, {
+        'joined_channels': joined,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final channelRef = _firestore.collection('channels').doc(channelId);
+      transaction.update(channelRef, {
+        'member_count': FieldValue.increment(-1),
+      });
+    });
+  }
+
+  // ── Broadcasts ──────────────────────────────────────────────────────────────
   Stream<List<Map<String, dynamic>>> streamLiveBroadcasts() {
     return _firestore
         .collection('broadcasts')
@@ -97,14 +136,11 @@ class StudentFirestoreService {
     });
   }
 
-  // -- Events --
-  /// Currently fetching all events from all channels and filtering by date.
-  /// Note: Firestore doesn't easily support collection group queries without indexes,
-  /// so we'll query events via a collectionGroup if index is added, or fetch all if small.
-  /// For robust production, use collectionGroup('events') with required index.
+  // ── Events ──────────────────────────────────────────────────────────────────
   Stream<List<EventModel>> streamAllEvents() {
     return _firestore.collectionGroup('events').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => EventModel.fromMap(doc.data(), doc.id)).toList();
     });
   }
 }
+
