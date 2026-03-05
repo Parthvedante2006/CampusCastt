@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_router.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/student_provider.dart';
+import '../../../domain/providers/admin_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
