@@ -44,12 +44,16 @@ class PlayerNotifier extends Notifier<PlayerNotifierState> {
 
   /// Start playing an HLS stream.
   Future<void> play(String streamUrl) async {
+    print('[Player Provider] Setting URL: $streamUrl');
     state = state.copyWith(state: PlayerState.buffering, streamUrl: streamUrl);
     try {
       await _audioPlayer.setUrl(streamUrl);
+      print('[Player Provider] URL set successfully, starting playback');
       await _audioPlayer.play();
+      print('[Player Provider] Playback started');
       state = state.copyWith(state: PlayerState.playing);
     } catch (e) {
+      print('[Player Provider] Error playing audio: $e');
       state = state.copyWith(
         state: PlayerState.error,
         error: e.toString(),

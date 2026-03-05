@@ -33,6 +33,11 @@ class _AnnouncementReplayPlayerScreenState
     _waveCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat(reverse: true);
+    
+    // Auto-play the audio when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _play();
+    });
   }
 
   @override
@@ -42,8 +47,10 @@ class _AnnouncementReplayPlayerScreenState
     super.dispose();
   }
 
-  Future<void> _play() async =>
-      ref.read(playerProvider.notifier).play(widget.audioUrl);
+  Future<void> _play() async {
+    print('[Replay Player] Playing URL: ${widget.audioUrl}');
+    await ref.read(playerProvider.notifier).play(widget.audioUrl);
+  }
 
   Future<void> _pause() async =>
       ref.read(playerProvider.notifier).pause();
@@ -60,6 +67,7 @@ class _AnnouncementReplayPlayerScreenState
     final playerState = ref.watch(playerProvider);
     final isPlaying = playerState.state == PlayerState.playing;
     final isBuffering = playerState.state == PlayerState.buffering;
+    final hasError = playerState.state == PlayerState.error;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A1628),
@@ -92,6 +100,37 @@ class _AnnouncementReplayPlayerScreenState
                 ],
               ),
             ),
+
+            // Show error if any
+            if (hasError) ...[
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error, color: Colors.red, size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Error: ${playerState.error ?? "Unknown error"}',
+                        style: const TextStyle(color: Colors.white),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _play,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
 
             Expanded(
               child: SingleChildScrollView(

@@ -44,12 +44,31 @@ class ChannelRepository {
     return _db
         .collection('broadcasts')
         .where('channelId', isEqualTo: channelId)
-        .orderBy('startedAt', descending: true)
-        .limit(10)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => {...doc.data(), 'id': doc.id})
-            .toList());
+        .map((snap) {
+      // Get all broadcasts for this channel
+      final broadcasts = snap.docs
+          .map((doc) => {...doc.data(), 'id': doc.id})
+          .toList();
+      
+      // Sort by startedAt descending (newest first) - client-side
+      broadcasts.sort((a, b) {
+        final aTs = a['startedAt'];
+        final bTs = b['startedAt'];
+        
+        final aDate = aTs is Timestamp 
+            ? aTs.toDate() 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = bTs is Timestamp 
+            ? bTs.toDate() 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        
+        return bDate.compareTo(aDate); // Descending order
+      });
+      
+      // Limit to 10 most recent
+      return broadcasts.take(10).toList();
+    });
   }
 
   /// Stream completed scheduled announcements that have playable audio.

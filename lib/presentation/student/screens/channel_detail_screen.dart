@@ -723,12 +723,19 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
     final title = broadcast['title']?.toString() ?? 'Untitled Broadcast';
     final description = broadcast['description']?.toString() ?? '';
     final broadcastId = broadcast['id']?.toString() ?? '';
+    
+    // Get channel name from the async provider
+    final channelAsync = ref.watch(channelProvider(widget.channelId));
+    final channelName = channelAsync.value?.name ?? 'Unknown Channel';
 
     return GestureDetector(
       onTap: () {
         if (broadcastId.isNotEmpty) {
           context.push(AppRoutes.livePlayer,
-              extra: {'broadcastId': broadcastId});
+              extra: {
+                'broadcastId': broadcastId,
+                'channelName': channelName,
+              });
         }
       },
       child: Container(
@@ -798,7 +805,10 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
                   onPressed: () {
                     if (broadcastId.isNotEmpty) {
                       context.push(AppRoutes.livePlayer,
-                          extra: {'broadcastId': broadcastId});
+                          extra: {
+                            'broadcastId': broadcastId,
+                            'channelName': channelName,
+                          });
                     }
                   },
                   icon: const Icon(Icons.headphones,
@@ -922,58 +932,113 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
   Widget _buildPastBroadcastCard(Map<String, dynamic> broadcast) {
     final title = broadcast['title']?.toString() ?? 'Untitled Broadcast';
     final description = broadcast['description']?.toString() ?? '';
+    final broadcastId = broadcast['id']?.toString() ?? broadcast['broadcastId']?.toString() ?? '';
+    final streamUrl = broadcast['streamUrl']?.toString() ?? '';
     final endedAt = broadcast['endedAt'];
+    
+    final channelAsync = ref.watch(channelProvider(widget.channelId));
+    final channelName = channelAsync.value?.name ?? 'Channel';
 
     DateTime? endedDate;
     if (endedAt is Timestamp) endedDate = endedAt.toDate();
     final timeAgo = _formatTimeAgo(endedDate);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B2330),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2E3D52),
-                  borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: () {
+        // Replay the broadcast using the HLS URL
+        print('[Channel Detail] Replay broadcast: $broadcastId');
+        print('[Channel Detail] Stream URL: $streamUrl');
+        if (streamUrl.isNotEmpty) {
+          context.push(AppRoutes.replayPlayer, extra: {
+            'audioUrl': streamUrl,
+            'title': title,
+            'channelName': channelName,
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Stream URL not available')),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B2330),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E3D52),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text('PAST BROADCAST',
+                      style: TextStyle(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          letterSpacing: 0.5)),
                 ),
-                child: const Text('PAST BROADCAST',
-                    style: TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 9,
-                        letterSpacing: 0.5)),
-              ),
-              Text(timeAgo,
-                  style: const TextStyle(
-                      color: Colors.white54, fontSize: 11)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(title,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis),
-          if (description.isNotEmpty) ...[
+                Text(timeAgo,
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 11)),
+              ],
+            ),
             const SizedBox(height: 12),
-            _descriptionBox(description),
+            Text(title,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _descriptionBox(description),
+            ],
+            const SizedBox(height: 12),
+            // Replay button
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Replay Broadcast',
+                    style: TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white54,
+                  size: 20,
+                ),
+              ],
+            ),
           ],
-          const SizedBox(height: 12),
-          _noRecordingBox(),
-        ],
+        ),
       ),
     );
   }
