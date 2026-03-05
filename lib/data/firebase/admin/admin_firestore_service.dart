@@ -37,10 +37,6 @@ class AdminFirestoreService {
     required String password,
     required String collegeTrust,
   }) async {
-    // Save current admin user to restore later
-    final currentUser = _auth.currentUser;
-    final currentEmail = currentUser?.email;
-
     // Create Firebase Auth account for section owner
     // We need to use a secondary Firebase Auth instance workaround
     // Since creating a user with createUserWithEmailAndPassword signs in as that user,
@@ -68,6 +64,7 @@ class AdminFirestoreService {
     await _firestore.collection('sections').doc(sectionId).update({
       'owner_name': name,
       'owner_email': email,
+      'owner_password': password,
     });
 
     // Sign out the newly created user (it auto-signed in)
@@ -104,6 +101,7 @@ class AdminFirestoreService {
       'section_name': sectionName,
       'owner_name': ownerName,
       'owner_email': ownerEmail,
+      'owner_password': ownerPassword,
       'is_default': isDefault,
     });
 

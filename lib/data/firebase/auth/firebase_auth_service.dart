@@ -10,6 +10,65 @@ class FirebaseAuthService {
   // Sign in with Email and Password
   Future<UserModel?> loginWithEmailPassword(String email, String password) async {
     try {
+      // First, check if user exists in Firestore and get their role
+      QuerySnapshot userQuery = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      
+      if (userQuery.docs.isEmpty) {
+        throw Exception('No user found for that email.');
+      }
+      
+      Map<String, dynamic> userData = userQuery.docs.first.data() as Map<String, dynamic>;
+      String userRole = userData['role'] ?? '';
+      
+      // For section owners, validate password against sections collection
+      if (userRole == 'section_owner') {
+        String? sectionId = userData['section_id'];
+        if (sectionId != null) {
+          DocumentSnapshot sectionDoc = await _firestore
+              .collection('sections')
+              .doc(sectionId)
+              .get();
+          
+          if (!sectionDoc.exists) {
+            throw Exception('Section not found.');
+          }
+          
+          Map<String, dynamic> sectionData = sectionDoc.data() as Map<String, dynamic>;
+          String? storedPassword = sectionData['owner_password'];
+          
+          if (storedPassword != password) {
+            throw Exception('Wrong password provided.');
+          }
+        }
+      }
+      
+      // For channel owners, validate password against channels collection
+      if (userRole == 'channel_owner') {
+        String? channelId = userData['channel_id'];
+        if (channelId != null) {
+          DocumentSnapshot channelDoc = await _firestore
+              .collection('channels')
+              .doc(channelId)
+              .get();
+          
+          if (!channelDoc.exists) {
+            throw Exception('Channel not found.');
+          }
+          
+          Map<String, dynamic> channelData = channelDoc.data() as Map<String, dynamic>;
+          String? storedPassword = channelData['owner_password'];
+          
+          if (storedPassword != password) {
+            throw Exception('Wrong password provided.');
+          }
+        }
+      }
+      
+      // After validating password from Firestore, proceed with Firebase Auth login
       UserCredential credential = await _auth.signInWithEmailAndPassword(
         email: email, 
         password: password,

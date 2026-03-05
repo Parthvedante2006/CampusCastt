@@ -5,6 +5,7 @@ class ChannelModel {
   final String sectionName;
   final String? ownerName;
   final String? ownerEmail;
+  final String? ownerPassword;
   final bool isDefault;
   final bool isLive;
   final String? activeBroadcastId;
@@ -16,6 +17,7 @@ class ChannelModel {
     required this.sectionName,
     this.ownerName,
     this.ownerEmail,
+    this.ownerPassword,
     this.isDefault = false,
     this.isLive = false,
     this.activeBroadcastId,
@@ -29,6 +31,7 @@ class ChannelModel {
       sectionName: map['section_name'] ?? '',
       ownerName: map['owner_name'],
       ownerEmail: map['owner_email'],
+      ownerPassword: map['owner_password'],
       isDefault: map['is_default'] ?? false,
       isLive: map['is_live'] ?? false,
       activeBroadcastId: map['active_broadcast_id'],
@@ -42,6 +45,7 @@ class ChannelModel {
       'section_name': sectionName,
       'owner_name': ownerName,
       'owner_email': ownerEmail,
+      'owner_password': ownerPassword,
       'is_default': isDefault,
       'is_live': isLive,
       'active_broadcast_id': activeBroadcastId,

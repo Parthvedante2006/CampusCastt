@@ -46,16 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       if (userModel != null) {
-        // Navigate based on role
-        if (userModel.role == UserRole.admin) {
-          context.go(AppRoutes.adminDashboard);
-        } else if (userModel.role == UserRole.section_owner) {
-          context.go(AppRoutes.sectionDashboard);
-        } else if (userModel.role == UserRole.channel_owner) {
-          context.go(AppRoutes.channelDashboard);
-        } else {
-          context.go(AppRoutes.studentHome);
-        }
+        // The reactive MaterialApp in app.dart will handle navigation based on role.
       }
     } catch (e) {
       if (!mounted) return;

@@ -23,6 +23,10 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 // Provides the current UserModel fetched from Firestore
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
+  // Watch auth state to trigger rebuilds on login/logout
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return null;
+
   final authRepository = ref.watch(authRepositoryProvider);
   return await authRepository.getCurrentUserModel();
 });
