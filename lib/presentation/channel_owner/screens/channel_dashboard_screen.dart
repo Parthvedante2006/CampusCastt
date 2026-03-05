@@ -641,9 +641,9 @@ class ChannelOwnerDashboardScreen extends ConsumerWidget {
             label: 'Events',
             isSelected: selectedIndex == 2,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Events screen coming soon')),
-              );
+              if (selectedIndex != 2) {
+                context.go(AppRoutes.channelEvents);
+              }
             },
           ),
           _buildNavItem(

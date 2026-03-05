@@ -1,5 +1,6 @@
 import 'package:campuscast/data/firebase/firestore/channel_firestore.dart';
 import 'package:campuscast/data/models/channel_model.dart';
+import 'package:campuscast/data/models/event_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChannelRepository {
@@ -49,5 +50,11 @@ class ChannelRepository {
         .map((snap) => snap.docs
             .map((doc) => {...doc.data(), 'id': doc.id})
             .toList());
+  }
+
+  /// Stream events for a specific channel from the
+  /// channels/{channelId}/events subcollection.
+  Stream<List<EventModel>> streamChannelEvents(String channelId) {
+    return _firestore.streamChannelEvents(channelId);
   }
 }
