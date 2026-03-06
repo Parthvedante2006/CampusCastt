@@ -7,8 +7,14 @@ from fastapi.staticfiles import StaticFiles
 
 from config import config
 from services.socket_service import sio
+from services.notification_service import initialize_firebase_admin
 from routes.health_routes import router as health_router
 from routes.broadcast_routes import router as broadcast_router
+
+# ──────────────────────────────────────────────────────────────
+# Initialize Firebase Admin SDK
+# ──────────────────────────────────────────────────────────────
+initialize_firebase_admin()
 
 # ──────────────────────────────────────────────────────────────
 # FastAPI app

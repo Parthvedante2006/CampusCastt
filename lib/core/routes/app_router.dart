@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:flutter/material.dart';
 import 'package:campuscast/presentation/student/home_screen.dart';
 import 'package:campuscast/presentation/student/live_player_screen.dart';
 import 'package:campuscast/presentation/channel_owner/go_live_screen.dart';
@@ -14,6 +15,9 @@ import 'package:campuscast/presentation/student/screens/student_home_screen.dart
 import 'package:campuscast/presentation/student/screens/channel_detail_screen.dart';
 import 'package:campuscast/presentation/student/screens/event_detail_screen.dart';
 import 'package:campuscast/presentation/student/screens/announcement_replay_player_screen.dart';
+
+// ── Global navigator key for notification navigation ───────────
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 // ── Route path constants ───────────────────────────────────────
 class AppRoutes {
@@ -47,6 +51,7 @@ class AppRoutes {
 // NOTE: initialLocation and redirect are set dynamically in app.dart
 GoRouter createAppRouter({required String initialLocation}) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: initialLocation,
     routes: [
       // ── Auth routes ────────────────────────────────────────────

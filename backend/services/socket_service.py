@@ -3,6 +3,7 @@ import logging
 
 import services.ffmpeg_service as ffmpeg_service
 import services.hls_service as hls_service
+import services.notification_service as notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,16 @@ async def broadcast_start(sid, data):
 
     if success:
         print(f"[broadcast_start] ✅ FFmpeg started for '{broadcast_id}'")
+        
+        # Send push notifications to subscribers
+        try:
+            notification_service.send_live_broadcast_notification(
+                channel_id=channel_id,
+                broadcast_id=broadcast_id
+            )
+        except Exception as e:
+            logger.error(f"[broadcast_start] Failed to send notifications: {e}")
+        
         await sio.emit(
             "broadcast_ack",
             {"status": "started", "broadcast_id": broadcast_id},
